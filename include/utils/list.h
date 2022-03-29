@@ -1,0 +1,27 @@
+#pragma once
+
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node
+{
+    void* data;
+    struct Node* next;
+} Node;
+
+typedef struct List
+{
+    Node* head;
+} List;
+
+List* newList();
+
+void push_front(List* list, void* Data, int SizeofData);
+
+void push_back(List* list, void* Data, int SizeofData);
+
+void printList(List* list, void (*fptr)(void *));
+
+int length(List* list);
+
+
