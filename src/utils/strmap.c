@@ -143,25 +143,3 @@ void printStrMap(StrMap* map)
     printf("map size is %d\n",lenStrMap(map));
 }
 
-//int main()
-//{
-//    StrMap* map = newMap();
-//    char* keys[] = {
-//	"red","green","yellow"
-//    };
-//    char* values[] = {
-//	"apple","kiwii","banana"
-//    };
-//    char* query[] = {"red","purple"};
-//    for(int i=0;i<3;i++)
-//    {
-//	insStrMap(map,keys[i],values[i],strlen(values[i])+1);
-//    }
-//    printStrMap(map);
-//    delStrMap(map,query[0]);
-//    printStrMap(map);
-//    printf("key<%s> = value<%s>\n",query[0],(char*)getStrMap(map, query[0]));
-//
-//    freeStrMap(map);
-//    return 0;
-//}

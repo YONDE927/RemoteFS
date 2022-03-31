@@ -23,4 +23,5 @@ void insStrMap(StrMap* map, char* key, void* value, int size);
 void delStrMap(StrMap* map, char* key);
 int lenStrMap(StrMap* map);
 void freeStrMap(StrMap* map);
+void printStrMap(StrMap* map);
 

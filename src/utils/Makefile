@@ -5,12 +5,12 @@ INC = -I../../include
 all: list.o strmap.o
 
 list.o:
-	${CC} ${CFLAG} ${INC} -o ../../tmp/list.o -c list.c
+	${CC} ${CFLAG} ${INC} -o ../../obj/list.o -c list.c
 
 strmap.o:
-	${CC} ${CFLAG} ${INC} -o ../../tmp/strmap.o -c strmap.c
+	${CC} ${CFLAG} ${INC} -o ../../obj/strmap.o -c strmap.c
 
 clean:
-	rm -rf ../../tmp/list.o ../../tmp/strmap.o
+	rm -rf ../../obj/list.o ../../obj/strmap.o
 prepare:
 	mkdir -p ../../obj ../../tmp

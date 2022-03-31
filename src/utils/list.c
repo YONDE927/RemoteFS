@@ -46,6 +46,24 @@ void push_back(List* list, void* Data, int SizeofData)
     }
 }
 
+void freeNode(Node* pNode, void (*fptr)(void *))
+{
+    fptr(pNode->data);
+    free(pNode);
+}
+
+void freeList(List* list, void (*fptr)(void *))
+{
+    Node* pNode = list->head;
+    Node* tmp;
+    while(pNode != NULL)
+    {
+	tmp = pNode;
+	pNode = pNode->next;
+	freeNode(tmp, fptr);
+    }
+}
+
 void printList(List* list, void (*fptr)(void *))
 {
     Node* pNode = list->head;
@@ -78,25 +96,3 @@ int length(List* list)
     return cnt;
 }
 
-//int main()
-//{
-//    List* intlist = newList();
-//    int array[] = {0,1,2,3,4,5};
-//    for(int i=0;i<6;i++)
-//    {
-//	push_back(intlist,&array[i],sizeof(int));
-//    }
-//    printList(intlist,printInt);
-//    printf("size of list is %d\n",length(intlist));
-//    
-//    List* strlist = newList();
-//    char* docs[] = {"Apple","Banana","Grape"};
-//    for(int i=0;i<3;i++)
-//    {
-//	push_back(strlist,docs[i],strlen(docs[i])+1);
-//    }
-//    printList(strlist,printStr);
-//    printf("size of list is %d\n",length(strlist));
-//    return 0;
-//}
-//
