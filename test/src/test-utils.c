@@ -1,5 +1,5 @@
-#include "utils/list.h"
-#include "utils/strmap.h"
+#include "list.h"
+#include "strmap.h"
 #include <stdio.h>
 
 int test_list()
@@ -13,7 +13,7 @@ int test_list()
     }
     printList(intlist,printInt);
     printf("size of list is %d\n",length(intlist));
-    freeList(intlist);
+    freeList(intlist,NULL);
     
     List* strlist = newList();
     for(int i=0;i<3;i++)
@@ -22,7 +22,7 @@ int test_list()
     }
     printList(strlist,printStr);
     printf("size of list is %d\n",length(strlist));
-    freeList(strlist);
+    freeList(strlist,NULL);
     return 0;
 }
 

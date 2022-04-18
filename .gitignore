@@ -2,6 +2,8 @@
 bin/
 sandbox/
 build/obj
+build/test
+build/config
 
 # Prerequisites
 *.d

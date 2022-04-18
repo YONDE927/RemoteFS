@@ -48,7 +48,14 @@ void push_back(List* list, void* Data, int SizeofData)
 
 void freeNode(Node* pNode, void (*fptr)(void *))
 {
-    fptr(pNode->data);
+    if(fptr == NULL)
+    {
+	free(pNode->data);
+    }
+    else
+    {
+	fptr(pNode->data);
+    }
     free(pNode);
 }
 
