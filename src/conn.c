@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "conn/sftpconn.h"
-#include "fs/attribute.h"
-#include "utils/list.h"
+#include "conn.h"
+#include "attribute.h"
+#include "list.h"
 
 int loadoption(char* path,Authinfo* authinfo)
 {
@@ -14,7 +14,7 @@ int loadoption(char* path,Authinfo* authinfo)
     FILE* file;
     int count = 0;
     file = fopen(path, "r");
-    if(file < 0)
+    if(file == NULL)
     {
 	return -1;
     }
@@ -52,7 +52,7 @@ int loadoption(char* path,Authinfo* authinfo)
 Connector* getConnector(char* configpath)
 {
     static Connector* connector = NULL;
-    Authinfo* authinfo;
+    static Authinfo* authinfo;
     if(connector==NULL)
     {
 	connector = (Connector*)malloc(sizeof(Connector));
@@ -66,18 +66,30 @@ Connector* getConnector(char* configpath)
 	}
 	if(connInit(connector, authinfo) < 0)
 	{
-	    printf("connection is not established\n");
+	    printf("connection cannot be established\n");
 	    free(connector);
 	    free(authinfo);
 	    return NULL;
 	}
-	free(authinfo);
     }
     if(ssh_is_connected(connector->m_ssh))
     {
 	return connector;
     }
-    return NULL;
+    else
+    {
+	if(connInit(connector, authinfo) < 0)
+	{
+	    printf("connection cannot be established\n");
+	    free(connector);
+	    free(authinfo);
+	    return NULL;
+	}
+	else
+	{
+	    return connector;
+	}
+    }
 }
 
 int connInit(Connector* connector,Authinfo* authinfo)
@@ -101,6 +113,7 @@ int connInit(Connector* connector,Authinfo* authinfo)
     return 0;
 }
 
+/* connReaddirはpathを受け取り、AttributeのList構造体を領域確保ともにポインタを返却*/
 List* connReaddir(char* path)
 {
     Connector* connector = getConnector(NULL);
@@ -138,8 +151,21 @@ List* connReaddir(char* path)
     return list;
 }
 
-int connStat(char* path, Attribute* attr)
+/* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
+Attribute* connStat(char* path)
 {
+    Attribute* attr = newAttr(strlen(path) + 1);
+    sftp_attributes sfstat;
+    Connector* connector = getConnector(NULL);
+    sfstat = sftp_stat(connector->m_sftp, path);
+    if(sfstat != NULL)
+    {
+	strncpy(attr->path, path, strlen(path) + 1);
+	attr->st.st_size = sfstat->size;
+	attr->st.st_atime = sfstat->atime;
+	attr->st.st_mtime = sfstat->mtime;
+	attr->st.st_nlink = 1;
+    }
     return 0;
 }
 
@@ -163,19 +189,32 @@ int connClose(char* path)
     return 0;
 }
 
-int connDownload(char* src, char* dest)
+int main(int argc, char**argv)
 {
-    return 0;
-}
-
-int main()
-{
-    char* configpath = "./ssh.config";
+    List* list;
+    Node* node;
+    Attribute* attr;
+    if(argc < 2)
+    {
+	printf("conn.o [SSHCONFIG]\n");
+	exit(EXIT_FAILURE);
+    }
+    char* configpath = argv[1];
     Connector* connector = getConnector(configpath);
+    if(connector==NULL){
+	exit(EXIT_FAILURE);
+    }
     Connector* con2 = getConnector(NULL);
     if(con2 != NULL)
     {
 	printf("static conn succeed\n");
     }
-    List* list = connReaddir("/home/yonde/Documents/RemoteFS");
+    list = connReaddir("/home/yonde/Documents/RemoteFS");
+    for(node = list->head; node != NULL; node = node->next)
+    {
+	attr = (Attribute*)node->data;
+	printf("%s %ld %ld\n",attr->path,attr->st.st_size,attr->st.st_mtime);		
+    }
+    printf("\n");
+    return 0;
 }

@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "utils/list.h"
+#include "list.h"
 
 List* newList()
 {

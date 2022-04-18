@@ -1,8 +1,7 @@
 #RemoteFS
 bin/
 sandbox/
-tmp/
-obj/
+build/obj
 
 # Prerequisites
 *.d

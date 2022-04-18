@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "utils/strmap.h"
+#include "strmap.h"
 
 StrMap* newMap()
 {
