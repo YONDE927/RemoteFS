@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "conn.h"
 
@@ -152,23 +153,34 @@ List* connReaddir(char* path)
 /* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
 Attribute* connStat(char* path)
 {
-    Attribute* attr = newAttr(strlen(path) + 1);
+    Attribute* attr = NULL;
     sftp_attributes sfstat;
     Connector* connector = getConnector(NULL);
+    if(connector == NULL)
+    {
+	return NULL;
+    }
     sfstat = sftp_stat(connector->m_sftp, path);
     if(sfstat != NULL)
     {
+	attr = newAttr(strlen(path) + 1);
 	strncpy(attr->path, path, strlen(path) + 1);
-	attr->st.st_size = sfstat->size;
+	attr->st.st_size  = sfstat->size;
 	attr->st.st_atime = sfstat->atime;
 	attr->st.st_mtime = sfstat->mtime;
 	attr->st.st_nlink = 1;
     }
-    return 0;
+    return attr;
 }
 
-int connOpen(char* path)
+int connOpen(char* path,int flag,sftp_file* pfile)
 {
+    Connector* connector = getConnector(NULL);
+    *pfile = sftp_open(connector->m_sftp, path, O_RDWR, 0);
+    if(*pfile == NULL)
+    {
+	return -1;
+    }
     return 0;
 }
 

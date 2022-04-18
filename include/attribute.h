@@ -10,5 +10,5 @@ typedef struct Attribute
 } Attribute;
 
 Attribute* newAttr(int pathlen);
-void freeAttr(Attribute* attr);
+void freeAttr(void* attr);
 

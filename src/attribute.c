@@ -9,10 +9,10 @@ Attribute* newAttr(int pathlen)
     return attr;
 }
 
-void freeAttr(Attribute* attr)
+void freeAttr(void* attr)
 {
-    free(attr->path);
-    free(attr);
+    free(((Attribute*)attr)->path);
+    free((Attribute*)attr);
 }
 
 
