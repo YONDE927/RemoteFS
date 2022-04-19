@@ -25,9 +25,8 @@ Connector* getConnector(char* configpath);
 int connInit(Connector* connector,Authinfo* authinfo);
 List* connReaddir(char* path);
 Attribute* connStat(char* path);
-int connRead(char* path, void* buffer, int size);
-int connWrite(char* path, void* buffer, int size);
-int connClose(char* path);
+int connRead(char* path, void* buffer, long offset, int size);
+int connWrite(char* path, void* buffer, long offset, int size);
 
 
 

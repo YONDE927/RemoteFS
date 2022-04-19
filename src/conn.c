@@ -7,6 +7,8 @@
 
 #include "conn.h"
 
+#define CHUNK_SIZE 16384
+
 int loadoption(char* path,Authinfo* authinfo)
 {
     char ch;
@@ -173,29 +175,113 @@ Attribute* connStat(char* path)
     return attr;
 }
 
-int connOpen(char* path,int flag,sftp_file* pfile)
+sftp_file connOpen(char* path,int flag)
 {
+    sftp_file file;
     Connector* connector = getConnector(NULL);
-    *pfile = sftp_open(connector->m_sftp, path, O_RDWR, 0);
-    if(*pfile == NULL)
+    file = sftp_open(connector->m_sftp, path, O_RDWR, 0);
+    if(file == NULL)
+    {
+	printf("error %d\n",sftp_get_error(connector->m_sftp));
+    }
+    return file;
+}
+
+int connRead(char* path, void* buffer, long offset, int size)
+{
+    /* charを予約して、sftp_readしてコピーする。 */
+    int read_sum = 0;
+    int read_size = 0;
+    int nbytes = 1;
+    sftp_file file = NULL;
+
+    // connOpenでリモートファイルを読む
+    file = connOpen(path, O_RDONLY);
+    if(file == NULL)
     {
 	return -1;
     }
-    return 0;
+    //読み込み
+    if(sftp_seek(file, offset) < 0)
+    {
+	return -1;
+    }
+
+    for(; (nbytes != 0) & (size > 0) ;)
+    {
+	if( size > CHUNK_SIZE )
+	{
+	    read_size = CHUNK_SIZE;
+	}
+	else
+	{
+	    read_size = size;
+	}
+	nbytes = sftp_read(file, buffer, read_size);
+	if(nbytes < 0)
+	{
+	    return -1;
+	}
+	//次のreadのためにbufferのオフセットを更新して読み込み分サイズを減らす。
+	buffer += nbytes;
+	size -= nbytes;
+	//総読み込みサイズの計算
+	read_sum += nbytes;
+    }
+    //リモートファイルのクローズ
+    if(sftp_close(file) == SSH_ERROR)
+    {
+	return -1;
+    }
+    return read_sum;
 }
 
-int connRead(char* path, void* buffer, int size)
+int connWrite(char* path, void* buffer, long offset, int size)
 {
-    return 0;
-}
+    /* charを予約して、sftp_writeしてコピーする。 */
+    int write_sum = 0;
+    int write_size = 0;
+    int nbytes = 1;
+    sftp_file file = NULL;
 
-int connWrite(char* path, void* buffer, int size)
-{
-    return 0;
-}
+    // connOpenでリモートファイルを読む
+    file = connOpen(path, O_WRONLY);
+    if(file == NULL)
+    {
+	return -1;
+    }
+    //書き込み
+    if(sftp_seek(file, offset) < 0)
+    {
+	return -1;
+    }
 
-int connClose(char* path)
-{
-    return 0;
+    for(; (nbytes != 0) & (size > 0) ;)
+    {
+	if( size > CHUNK_SIZE )
+	{
+	    write_size = CHUNK_SIZE;
+	}
+	else
+	{
+	    write_size = size;
+	}
+	nbytes = sftp_write(file, buffer, write_size);
+	if(nbytes < 0)
+	{
+	    return -1;
+	}
+	//次のreadのためにbufferのオフセットを更新して読み込み分サイズを減らす。
+	buffer += nbytes;
+	size -= nbytes;
+	//総読み込みサイズの計算
+	write_sum += nbytes;
+    }
+    //リモートファイルのクローズ
+    if(sftp_close(file) == SSH_ERROR)
+    {
+	return -1;
+    }
+    return write_sum;
 }
 

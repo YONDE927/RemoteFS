@@ -30,9 +30,13 @@ prepare:
 	mkdir -p obj test
 
 #test
-test: test-conn test-utils
+test: test-conn test-utils test-clean
+	echo "Hello connRead test." > /tmp/connRead.txt
+	touch /tmp/connWrite.txt
 test-conn: conn utils
 	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}src/test-conn.c obj/list.o obj/conn.o obj/attribute.o -lssh
 test-utils: utils
 	${CC} ${CFLAG} ${INC} -o test/test-utils ${TESTD}src/test-utils.c obj/list.o obj/strmap.o
+test-clean:
+	rm -f /tmp/connRead.txt /tmp/connWrite.txt
 		

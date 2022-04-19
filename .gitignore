@@ -4,6 +4,7 @@ sandbox/
 build/obj
 build/test
 build/config
+*.swp
 
 # Prerequisites
 *.d
