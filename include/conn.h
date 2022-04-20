@@ -20,6 +20,13 @@ typedef struct Authinfo
     char password[64];
 } Authinfo;
 
+typedef struct Remotefile
+{
+    char* path;
+    off_t offset;
+    sftp_file fh;
+} Remotefile;
+
 Connector* getConnector(char* configpath);
 
 int connInit(Connector* connector,Authinfo* authinfo);
