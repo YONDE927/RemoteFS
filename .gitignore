@@ -5,6 +5,7 @@ build/obj
 build/test
 build/config
 *.swp
+commiter.sh
 
 # Prerequisites
 *.d
