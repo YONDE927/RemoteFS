@@ -1,4 +1,4 @@
-#include "attribute.h"
+#include "entry.h"
 
 Attribute* newAttr(int pathlen)
 {

@@ -4,7 +4,7 @@
 
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
-#include "attribute.h"
+#include "entry.h"
 #include "list.h"
 
 typedef struct Connector
@@ -23,10 +23,10 @@ typedef struct Authinfo
 Connector* getConnector(char* configpath);
 
 int connInit(Connector* connector,Authinfo* authinfo);
-List* connReaddir(char* path);
-Attribute* connStat(char* path);
-int connRead(char* path, void* buffer, long offset, int size);
-int connWrite(char* path, void* buffer, long offset, int size);
+List* connReaddir(const char* path);
+Attribute* connStat(const char* path);
+int connRead(const char* path, void* buffer, long offset, int size);
+int connWrite(const char* path, void* buffer, long offset, int size);
 
 
 

@@ -115,7 +115,7 @@ int connInit(Connector* connector,Authinfo* authinfo)
 }
 
 /* connReaddirはpathを受け取り、AttributeのList構造体を領域確保ともにポインタを返却*/
-List* connReaddir(char* path)
+List* connReaddir(const char* path)
 {
     Connector* connector = getConnector(NULL);
     List* list = newList();
@@ -153,7 +153,7 @@ List* connReaddir(char* path)
 }
 
 /* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
-Attribute* connStat(char* path)
+Attribute* connStat(const char* path)
 {
     Attribute* attr = NULL;
     sftp_attributes sfstat;
@@ -175,7 +175,7 @@ Attribute* connStat(char* path)
     return attr;
 }
 
-sftp_file connOpen(char* path,int flag)
+sftp_file connOpen(const char* path,int flag)
 {
     sftp_file file;
     Connector* connector = getConnector(NULL);
@@ -187,7 +187,7 @@ sftp_file connOpen(char* path,int flag)
     return file;
 }
 
-int connRead(char* path, void* buffer, long offset, int size)
+int connRead(const char* path, void* buffer, long offset, int size)
 {
     /* charを予約して、sftp_readしてコピーする。 */
     int read_sum = 0;
@@ -236,7 +236,7 @@ int connRead(char* path, void* buffer, long offset, int size)
     return read_sum;
 }
 
-int connWrite(char* path, void* buffer, long offset, int size)
+int connWrite(const char* path, void* buffer, long offset, int size)
 {
     /* charを予約して、sftp_writeしてコピーする。 */
     int write_sum = 0;
