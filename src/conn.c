@@ -53,7 +53,7 @@ int loadoption(char* path,Authinfo* authinfo)
 Connector* getConnector(char* configpath)
 {
     static Connector* connector = NULL;
-    static Authinfo* authinfo;
+    static Authinfo* authinfo = NULL;
     if(connector==NULL)
     {
 	connector = (Connector*)malloc(sizeof(Connector));
@@ -63,6 +63,8 @@ Connector* getConnector(char* configpath)
 	    printf("loadoption failed.\n");
 	    free(connector);
 	    free(authinfo);
+	    connector = NULL;
+	    authinfo = NULL;
 	    return NULL;
 	}
 	if(connInit(connector, authinfo) < 0)
@@ -70,6 +72,8 @@ Connector* getConnector(char* configpath)
 	    printf("connection cannot be established\n");
 	    free(connector);
 	    free(authinfo);
+	    connector = NULL;
+	    authinfo = NULL;
 	    return NULL;
 	}
     }
@@ -175,34 +179,44 @@ Attribute* connStat(const char* path)
     return attr;
 }
 
-sftp_file connOpen(const char* path,int flag)
+FileSession* connOpen(const char* path,int flag)
 {
+    FileSession* rf;
     sftp_file file;
+    int path_size;
     Connector* connector = getConnector(NULL);
     file = sftp_open(connector->m_sftp, path, O_RDWR, 0);
     if(file == NULL)
     {
 	printf("error %d\n",sftp_get_error(connector->m_sftp));
+	return NULL;
     }
-    return file;
+
+    path_size = strlen(path);
+    rf = malloc(sizeof(FileSession));
+    rf->path = malloc(sizeof(char)*(path_size + 1));
+    strncpy(rf->path, path, path_size);
+    rf->path[path_size] = '\0';
+    rf->fh = file;
+    rf->offset = 0;
+    return rf;
 }
 
-int connRead(const char* path, void* buffer, long offset, int size)
+int connRead(FileSession* file, void* buffer, int size)
 {
     /* charを予約して、sftp_readしてコピーする。 */
     int read_sum = 0;
     int read_size = 0;
     int nbytes = 1;
-    sftp_file file = NULL;
 
-    // connOpenでリモートファイルを読む
-    file = connOpen(path, O_RDONLY);
     if(file == NULL)
     {
+	printf("Remotefile* file not exist\n");
 	return -1;
     }
+
     //読み込み
-    if(sftp_seek(file, offset) < 0)
+    if(sftp_seek(file->fh, file->offset) < 0)
     {
 	return -1;
     }
@@ -217,7 +231,7 @@ int connRead(const char* path, void* buffer, long offset, int size)
 	{
 	    read_size = size;
 	}
-	nbytes = sftp_read(file, buffer, read_size);
+	nbytes = sftp_read(file->fh, buffer, read_size);
 	if(nbytes < 0)
 	{
 	    return -1;
@@ -228,30 +242,24 @@ int connRead(const char* path, void* buffer, long offset, int size)
 	//総読み込みサイズの計算
 	read_sum += nbytes;
     }
-    //リモートファイルのクローズ
-    if(sftp_close(file) == SSH_ERROR)
-    {
-	return -1;
-    }
     return read_sum;
 }
 
-int connWrite(const char* path, void* buffer, long offset, int size)
+int connWrite(FileSession* file, void* buffer, int size)
 {
     /* charを予約して、sftp_writeしてコピーする。 */
     int write_sum = 0;
     int write_size = 0;
     int nbytes = 1;
-    sftp_file file = NULL;
-
-    // connOpenでリモートファイルを読む
-    file = connOpen(path, O_WRONLY);
+    
     if(file == NULL)
     {
+	printf("Remotefile* file not exist\n");
 	return -1;
     }
+
     //書き込み
-    if(sftp_seek(file, offset) < 0)
+    if(sftp_seek(file->fh, file->offset) < 0)
     {
 	return -1;
     }
@@ -266,7 +274,7 @@ int connWrite(const char* path, void* buffer, long offset, int size)
 	{
 	    write_size = size;
 	}
-	nbytes = sftp_write(file, buffer, write_size);
+	nbytes = sftp_write(file->fh, buffer, write_size);
 	if(nbytes < 0)
 	{
 	    return -1;
@@ -277,11 +285,24 @@ int connWrite(const char* path, void* buffer, long offset, int size)
 	//総読み込みサイズの計算
 	write_sum += nbytes;
     }
-    //リモートファイルのクローズ
-    if(sftp_close(file) == SSH_ERROR)
-    {
-	return -1;
-    }
     return write_sum;
 }
 
+int connClose(FileSession* file)
+{
+    if(file == NULL)
+    {
+	printf("Remotefile* file not exist\n");
+	return -1;
+    }
+
+    if(sftp_close(file->fh) == SSH_ERROR)
+    {
+	printf("sftp_close error\n");
+	return -1;
+    }
+    free(file->path);
+    free(file);
+    file = NULL;
+    return 0;
+}

@@ -4,6 +4,8 @@ sandbox/
 build/obj
 build/test
 build/config
+build/mnt
+build/RemoteFS
 *.swp
 commiter.sh
 

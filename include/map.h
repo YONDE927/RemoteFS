@@ -17,11 +17,30 @@ typedef struct StrMap{
     int size;
 } StrMap;
 
-StrMap* newMap();
+StrMap* newStrMap();
 void* getStrMap(StrMap* map,char* key);
 void insStrMap(StrMap* map, char* key, void* value, int size);
 void delStrMap(StrMap* map, char* key);
 int lenStrMap(StrMap* map);
 void freeStrMap(StrMap* map);
 void printStrMap(StrMap* map);
+
+typedef struct IntMapNode{
+    struct IntMapNode* next;
+    int key;
+    void* value;
+} IntMapNode;
+
+typedef struct IntMap{
+    IntMapNode* head;
+    int size;
+} IntMap;
+
+IntMap* newIntMap();
+void* getIntMap(IntMap* map, int key);
+void insIntMap(IntMap* map, int key, void* value, int size);
+void delIntMap(IntMap* map, int key);
+int lenIntMap(IntMap* map);
+void freeIntMap(IntMap* map);
+void printIntMap(IntMap* map);
 

@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include "strmap.h"
+#include "map.h"
 
-StrMap* newMap()
+StrMap* newStrMap()
 {
     StrMap* map;
     map = malloc(sizeof(StrMap));
@@ -141,5 +141,118 @@ void printStrMap(StrMap* map)
 	}
     }
     printf("map size is %d\n",lenStrMap(map));
+}
+
+IntMap* newIntMap()
+{
+    IntMap* map;
+    map = malloc(sizeof(IntMap));
+    memset(map,0,sizeof(IntMap));
+    return map;
+}
+
+void* getIntMap(IntMap* map,int key)
+{
+    IntMapNode* pNode = map->head;
+    for(;pNode!=NULL;pNode=pNode->next)
+    {
+	if(pNode->key == key)
+	{
+	    return pNode->value;
+	}
+    }
+    return NULL;
+}
+
+void insIntMap(IntMap* map, int key, void* value, int size)
+{
+    IntMapNode* pNode = map->head;
+    //新しいノードを予約し、値を埋める。
+    IntMapNode* newNode = malloc(sizeof(IntMapNode));
+    memset(newNode, 0, sizeof(IntMapNode));
+    //keyのメモリを代入
+    newNode->key = key;
+    //valueのメモリを予約
+    newNode->value = malloc(size);
+    //valueにデータをコピー
+    memcpy(newNode->value, value, size);
+    //valueのnextにリンクリストの先頭アドレスを登録
+    newNode->next = pNode;
+    //ハッシュチェーンの先頭に登録
+    map->head = newNode;
+    //printf("newNode->key = %s, newNode->value = %s\n",newNode->key,(char*)newNode->value);
+}
+
+void delIntMap(IntMap* map, int key)
+{
+    IntMapNode* pNode = map->head;
+    IntMapNode* prev = NULL;
+    for(;pNode!=NULL;pNode=pNode->next)
+    {
+	if(pNode->key == key)
+	{
+	    //前のノードのnextに次のノードのアドレスを譲渡
+	    if(prev!=NULL)
+	    {
+		prev->next = pNode->next;
+	    }
+	    else
+	    {
+		//最初のノードの場合
+		map->head = pNode->next;
+	    }
+	    //ノードのメモリを解放
+	    free(pNode->value);
+	    free(pNode);
+	    break;
+	}
+	else
+	{
+	    prev = pNode;
+	}
+    }
+}
+
+int lenIntMap(IntMap* map)
+{
+    int i,size = 0;
+    IntMapNode* pNode;
+    pNode = map->head;
+    while(pNode)
+    {
+	size++;
+	pNode = pNode->next;
+    }
+    return size;
+}
+
+void freeIntMap(IntMap* map)
+{
+    int i;
+    IntMapNode* pNode;
+    IntMapNode* pNext;
+    pNode = map->head;
+    while(pNode)
+    {
+	pNext = pNode->next;
+	free(pNode->value);
+	free(pNode);
+	pNode = pNext;
+    }	    
+}
+
+
+void printIntMap(IntMap* map)
+{
+    IntMapNode* pNode;
+    int i;
+    printf("map contents\n");
+    pNode = map->head;
+    while(pNode)
+    {
+	printf("key<%d> = value<%s>\n",pNode->key,(char*)pNode->value);
+	pNode = pNode->next;
+    }
+    printf("map size is %d\n",lenIntMap(map));
 }
 

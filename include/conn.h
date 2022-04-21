@@ -20,20 +20,22 @@ typedef struct Authinfo
     char password[64];
 } Authinfo;
 
-typedef struct Remotefile
+typedef struct FileSession
 {
     char* path;
     off_t offset;
     sftp_file fh;
-} Remotefile;
+} FileSession;
 
 Connector* getConnector(char* configpath);
 
 int connInit(Connector* connector,Authinfo* authinfo);
 List* connReaddir(const char* path);
 Attribute* connStat(const char* path);
-int connRead(const char* path, void* buffer, long offset, int size);
-int connWrite(const char* path, void* buffer, long offset, int size);
+FileSession* connOpen(const char* path, int flag);
+int connRead(FileSession* file, void* buffer, int size);
+int connWrite(FileSession* file, void* buffer, int size);
+int connClose(FileSession* file);
 
 
 

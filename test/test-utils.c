@@ -1,5 +1,5 @@
 #include "list.h"
-#include "strmap.h"
+#include "map.h"
 #include <stdio.h>
 
 int test_list()
@@ -28,7 +28,7 @@ int test_list()
 
 int test_strmap()
 {
-    StrMap* map = newMap();
+    StrMap* map = newStrMap();
     char* keys[] = {
 	"red","green","yellow"
     };
@@ -49,9 +49,30 @@ int test_strmap()
     return 0;
 }
 
+int test_intmap()
+{
+    IntMap* map = newIntMap();
+    int keys[] = {1,2,3};
+    char* values[] = {
+	"apple","kiwii","banana"
+    };
+    int query[] = {1,3};
+    for(int i=0;i<3;i++)
+    {
+	insIntMap(map,keys[i],values[i],strlen(values[i])+1);
+    }
+    printIntMap(map);
+    delIntMap(map,query[0]);
+    printIntMap(map);
+    printf("key<%d> = value<%s>\n",query[0],(char*)getIntMap(map, query[0]));
+
+    freeIntMap(map);
+    return 0;
+}
 int main()
 {
     test_list();
     test_strmap();
+    test_intmap();
     return 0;
 }

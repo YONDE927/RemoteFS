@@ -52,10 +52,24 @@ int main(int argc, char**argv)
     char write_buf[64] = "Hello connWrite test.\n";
     char path[64] = "/tmp/connWrite.txt";
     FILE* file;
-
+    FileSession* rf1,* rf2;
+ 
+    /* connOpen */
+    rf1 = connOpen("/tmp/connRead.txt", O_RDONLY);
+    if(rf1 < 0)
+    {
+	printf("connOpen error\n");
+	exit(EXIT_FAILURE);
+    }
+    rf2 = connOpen("/tmp/connWrite.txt", O_RDONLY);
+    if(rf2 < 0)
+    {
+	printf("connOpen error\n");
+	exit(EXIT_FAILURE);
+    }
     /* connRead */
     printf("\nconnRead\n");
-    nbytes = connRead("/tmp/connRead.txt", buf, 0, read_size);
+    nbytes = connRead(rf1, buf, read_size);
     if(nbytes > 0)
     {
 	buf[read_size] = '\0';
@@ -70,7 +84,7 @@ int main(int argc, char**argv)
     printf("connWrite\n");
     memset(buf, 0, 256);
     creat(path, S_IRWXU);
-    nbytes = connWrite(path, write_buf, 0, write_size);
+    nbytes = connWrite(rf2, write_buf, write_size);
     if(nbytes > 0)
     {
 	file = fopen(path, "r");
