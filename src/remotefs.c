@@ -53,15 +53,53 @@ Args* getArgs(char* RemoteRoot, char* SshConfig)
     return args;
 }
 
+FsData* getFsData()
+{
+    static FsData* fs = NULL;
+    if(fs == NULL)
+    {
+	int len;
+	Args* args;
+	Connector* connecotor;
+
+	args = getArgs(NULL,NULL);
+	if(args == NULL)
+	{
+	    printf("no args\n");
+	    exit(EXIT_FAILURE);
+	}
+
+	fs = malloc(sizeof(FsData));
+	fs->FhMap = newIntMap();
+	//SSH接続とSFTPセッションの確立 
+	connecotor = getConnector(args->SshConfig);
+	if(connecotor == NULL)
+	{
+	    printf("SSH session is not established\n");
+	    exit(EXIT_FAILURE);
+	}
+
+	//FsDataにリモートサーバーのルートパスを設定
+	len = strlen(args->RemoteRoot);
+	fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
+	strncpy(fs->RemoteRoot, args->RemoteRoot, len);
+	fs->RemoteRoot[len] = '\0';
+	
+	printf("Init %s\n", fs->RemoteRoot);
+    }
+    return fs;
+}
+
+
 IntMap* getFhMap()
 {
-    FsData* fs = fuse_get_context()->private_data;
+    FsData* fs = getFsData();
     return fs->FhMap;
 }
 
 char* getRoot()
 {
-    FsData* fs = (FsData*)fuse_get_context()->private_data;
+    FsData* fs = getFsData();
     return fs->RemoteRoot;
 }
 
@@ -79,41 +117,6 @@ char* patheditor(const char* path)
     strncat(buffer, path, len2);
     buffer[len1 + len2] = '\0';
     return buffer;
-}
-
-void* fuseInit(struct fuse_conn_info *conn, struct fuse_config *cfg)
-{
-    int len;
-    Args* args;
-    FsData* fs;
-    Connector* connecotor;
-
-    args = getArgs(NULL, NULL);
-    if(args == NULL)
-    {
-	printf("no args\n");
-	exit(EXIT_FAILURE);
-    }
-
-    fs = malloc(sizeof(FsData));
-    fs->FhMap = newIntMap();
-    puts("aa");
-    //SSH接続とSFTPセッションの確立 
-    connecotor = getConnector(args->SshConfig);
-    if(connecotor == NULL)
-    {
-	printf("SSH session is not established\n");
-	exit(EXIT_FAILURE);
-    }
-
-    //FsDataにリモートサーバーのルートパスを設定
-    len = strlen(args->RemoteRoot);
-    fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
-    strncpy(fs->RemoteRoot, args->RemoteRoot, len);
-    fs->RemoteRoot[len] = '\0';
-    
-    printf("Init %s\n", fs->RemoteRoot);
-    return fs;
 }
 
 int fuseGetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
@@ -179,7 +182,7 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
 
     /* リモートファイルのオープン */
     RemotePath = patheditor(path);
-    session = connOpen(path, fi->flags);
+    session = connOpen(RemotePath, fi->flags);
     if(session == NULL)
     {
 	free(RemotePath);
@@ -223,7 +226,7 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     //オフセットの設定 
     fh->offset += rc;
     fh->session->offset += rc;
-    return 0;
+    return rc;
 }
 
 int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -256,7 +259,7 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
     fh->offset += rc;
     fh->session->offset += rc;
 
-    return 0;    
+    return rc;    
 }
 
 int fuseRelease(const char *path, struct fuse_file_info *fi)
@@ -291,20 +294,27 @@ int fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 {
     List* attrs;
     char* RemotePath;
+    Attribute* attr;
     
-    attrs = connReaddir(path); 
+    RemotePath = patheditor(path);
+    attrs = connReaddir(RemotePath); 
     if(attrs == NULL)
     {
 	return -ENETDOWN;
     }
     for(Node* node = attrs->head; node != NULL; node = node->next)
     {
-	Attribute* attr = node->data;
+	attr = node->data;
 	filler(buf, attr->path, &(attr->st), 0, FUSE_FILL_DIR_PLUS);
     }
     freeList(attrs, freeAttr);
 
     return 0;    
+}
+
+void* fuseInit(struct fuse_conn_info *conn, struct fuse_config *cfg)
+{
+    return NULL;
 }
 
 void fuseDestory(void *private_data)
@@ -336,7 +346,7 @@ off_t fuseLseek(const char *path, off_t offset, int whence, struct fuse_file_inf
     return fh->offset;
 }
 
-struct fuse_operations fuseOper = 
+static struct fuse_operations fuseOper = 
 {
     .getattr = fuseGetattr,
     .open = fuseOpen,
@@ -353,6 +363,7 @@ struct fuse_operations fuseOper =
 int main(int argc, char* argv[])
 {
     Args* args;
+    FsData* fs;
     int i, new_argc;
     char* new_argv[10];
 
@@ -364,6 +375,9 @@ int main(int argc, char* argv[])
 
     //Argsの取得
     args = getArgs(argv[2], argv[3]);
+
+    //FsDataの初期化
+    fs = getFsData();
 
     for (i=0, new_argc=0; (i<argc) && (new_argc<10); i++)
     {

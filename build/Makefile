@@ -6,7 +6,7 @@ TESTD = ../test/
 
 #remotefs
 all: conn utils test
-	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o -lssh -lfuse
+	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o -lssh -lfuse3
 
 #attribute
 attribute: list

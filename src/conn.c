@@ -159,6 +159,7 @@ List* connReaddir(const char* path)
 /* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
 Attribute* connStat(const char* path)
 {
+    printf("connStat %s\n",path);
     Attribute* attr = NULL;
     sftp_attributes sfstat;
     Connector* connector = getConnector(NULL);
@@ -174,7 +175,14 @@ Attribute* connStat(const char* path)
 	attr->st.st_size  = sfstat->size;
 	attr->st.st_atime = sfstat->atime;
 	attr->st.st_mtime = sfstat->mtime;
-	attr->st.st_nlink = 1;
+	attr->st.st_ctime = sfstat->createtime;
+	if(sfstat->type==1){
+	    attr->st.st_mode = S_IFREG | 0755;
+	    attr->st.st_nlink = 1;
+	}else if(sfstat->type==2){
+	    attr->st.st_mode = S_IFDIR | 0755;
+	    attr->st.st_nlink = 2;
+	}
     }
     return attr;
 }
