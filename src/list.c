@@ -46,6 +46,18 @@ void push_back(List* list, void* Data, int SizeofData)
     }
 }
 
+void pop_front(List* list, void (*fptr)(void*))
+{
+    Node* node;
+    
+    if(node != NULL)
+    {
+	node = list->head; 
+	list->head = node->next;
+	fptr(node->data);
+    }
+}
+
 void freeNode(Node* pNode, void (*fptr)(void *))
 {
     if(fptr == NULL)

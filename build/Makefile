@@ -20,6 +20,12 @@ conn: list attribute
 conn-clean:
 	rm -f obj/conn.o
 
+#cache
+cache: utils
+	${CC} ${CFLAG} ${INC} -o obj/cache ${SRCD}cache.c obj/list.o obj/map.o
+cache-clean:
+	rm -f obj/cache
+
 #utils
 utils: list map
 list: prepare

@@ -55,7 +55,7 @@ void insStrMap(StrMap* map, char* key, void* value, int size)
     //printf("newNode->key = %s, newNode->value = %s\n",newNode->key,(char*)newNode->value);
 }
 
-void delStrMap(StrMap* map, char* key)
+void delStrMap(StrMap* map, char* key, void(*fptr)(void*))
 {
     int mapchain = StrMapKey(key);
     StrMapNode* pNode = map->hash[mapchain];
@@ -105,6 +105,21 @@ int lenStrMap(StrMap* map)
 	}
     }
     return size;
+}
+
+void mapStrMap(StrMap* map, void* buf, void(*func)(void*,void*))
+{
+    int i,size = 0;
+    StrMapNode* pNode;
+    for ( i = 0 ; i < HASH_SIZE ; i ++ )
+    {
+	pNode = map->hash[i];
+	while(pNode)
+	{
+	    func(pNode->value, buf);
+	    pNode = pNode->next;
+	}
+    }
 }
 
 void freeStrMap(StrMap* map)

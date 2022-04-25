@@ -20,10 +20,11 @@ typedef struct StrMap{
 StrMap* newStrMap();
 void* getStrMap(StrMap* map,char* key);
 void insStrMap(StrMap* map, char* key, void* value, int size);
-void delStrMap(StrMap* map, char* key);
+void delStrMap(StrMap* map, char* key, void(*fptr)(void*));
 int lenStrMap(StrMap* map);
 void freeStrMap(StrMap* map);
 void printStrMap(StrMap* map);
+void mapStrMap(StrMap* map, void* buf, void(*func)(void*,void*));
 
 typedef struct IntMapNode{
     struct IntMapNode* next;

@@ -20,6 +20,8 @@ void push_front(List* list, void* Data, int SizeofData);
 
 void push_back(List* list, void* Data, int SizeofData);
 
+void pop_front(List* list, void (*fptr)(void*));
+
 void removeNode(List* list,int index);
 
 void freeList(List* list, void (*fptr)(void *));
