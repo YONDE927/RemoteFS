@@ -145,8 +145,7 @@ int slimCache(MemCache* memcache, int size)
 //バッファにキャッシュがヒットしたものをコピーする。ヒットしなかった箇所のリストを返す。
 List* ReadCache(Cache* cache, char* buf, int offset, int size)
 {
-    int block_index, buf_index, block_end, buf_end, cp_size;
-    List* fault_list,* block_list;
+    cache->buffers ;
 }
 
 //バッファをキャッシュに書き込む。書き込み場所によっては既存キャッシュを統合・上書きする。
