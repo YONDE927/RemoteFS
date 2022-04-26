@@ -8,18 +8,25 @@
 
 //ファイルの部分ごとにキャッシュ＆統合もできる
 //blocksはCacheBlockの配列である。
+
+typedef struct CacheBlock
+{
+    void* buffer;
+    int begin;
+    int end;
+} CacheBlock;
+
 typedef struct Cache
 {
-    char** buffers;
+    List* blocks; //CacheBlock
     int opened;
-    int block_num;
     int size;
     int mtime;
 } Cache;
 
 typedef struct MemCache
 {
-    List* cache_queue;
+    List* cache_queue; //Cache
     StrMap* cache_map;
 } MemCache;
 
@@ -94,17 +101,17 @@ int validateCache(Cache* cache, int mtime)
     return 0;
 }
 
+void freeCacheBlock(void* block)
+{
+    CacheBlock* pblock = block;
+    free(pblock->buffer);
+    free(block);
+}
+
 void freeCache(void* cache)
 {
     Cache* pcache = cache;
-    for(int i = 0; i < pcache->block_num; i++)
-    {
-	if(pcache->buffers[i] != NULL)
-	{
-	    free(pcache->buffers[i]);
-	}
-    }
-    free(pcache->buffers);
+    freeList(pcache->blocks, freeCacheBlock);
     free(pcache);
 }
 
@@ -142,10 +149,34 @@ int slimCache(MemCache* memcache, int size)
     return 0;
 }
 
-//バッファにキャッシュがヒットしたものをコピーする。ヒットしなかった箇所のリストを返す。
-List* ReadCache(Cache* cache, char* buf, int offset, int size)
+//キャッシュブロックに要求が満たせるか判定
+int hasCacheBlock(CacheBlock* block, int offset, int size)
 {
-    cache->buffers ;
+    int end = offset + size;
+    if((block->begin <= offset) & (end <= block->end))
+    {
+	return 1;
+    }
+    return 0;
+}
+
+//要求がキャッシュにあるのか
+int hasCache(Cache* cache, int offset, int size)
+{
+    CacheBlock* block;
+    for(Node* node = cache->blocks->head; node != NULL; node = node->next)
+    {
+	if(hasCacheBlock((CacheBlock*)node->data, offset, size))
+	{
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+//バッファにキャッシュがヒットしたものをコピーする。ヒットしなかった箇所のリストを返す。
+int ReadCache(Cache* cache, char* buf, int offset, int size)
+{
 }
 
 //バッファをキャッシュに書き込む。書き込み場所によっては既存キャッシュを統合・上書きする。
