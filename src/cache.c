@@ -4,6 +4,8 @@
 #include "map.h"
 
 #define BLOCK_SIZE 10240 // 10KB
+#define MAX_BLOCK_NUM 100 // 10KB
+#define MAX_FILE_SIZE 1024000 //1MB
 #define MAX_CACHE_SIZE 104857600 //100MB
 
 /* キャッシュの理想的な要件
@@ -13,21 +15,23 @@
  * - 全体のキャッシュ制限を超えないようにする
  */
 
-/* キャッシュのミドル要件
- * - リクエスト履歴を保持
- * - 少しでも足りなければ、キャッシュはヒットしていない
- * - 全体のキャッシュ制限を超えないようにする
- */
-
-/* キャッシュの最低要件
- * - リクエストに関わらず一括でメモリに乗せる
+/* キャッシュの現在要件
+ * - 部分的にキャッシュされる
+ * - 1mbまでのファイルしかキャッシュしない
+ * - 1mbを超えれば、データのキャッシュはやめる
  * - 全体のキャッシュ制限を超えないようにする
  */
 
 //ファイルごとにキャッシュ＆統合もできる
+typedef struct CacheBlock
+{
+    char* buffer;
+    int index;
+} CacheBlock;
+
 typedef struct Cache
 {
-    char* buffer; //CacheBlock
+    CacheBlock* blocks[MAX_BLOCK_NUM]; //CacheBlock
     int opened;
     int size;
     int mtime;
@@ -81,6 +85,26 @@ Cache* lookupCache(char* path)
     return cache;
 }
 
+CacheBlock* newBlock(int index)
+{
+    CacheBlock* block;
+
+    block = malloc(sizeof(CacheBlock));
+    block->buffer = NULL;
+    block->index = index;
+    return block;
+}
+
+Cache* newCache(int size)
+{
+    Cache* cache;
+    CacheBlock* block;
+
+    cache = malloc(sizeof(Cache));
+    memset(cache, 0, sizeof(Cache));
+    return cache;
+}
+
 int slimCache(MemCache* memcache, int size);
 //MemCacheにcacheを登録する。キャッシュサイズが大きければ古いキャッシュを削除する。
 int registerCache(char* path, Cache* cache)
@@ -111,9 +135,31 @@ int validateCache(Cache* cache, int mtime)
     return 0;
 }
 
+void freeBlock(void* block)
+{
+    CacheBlock* pblock = block;
+
+    if(pblock->buffer != NULL)
+    {
+	free(pblock->buffer);
+    }
+    free(pblock);
+}
+
 void freeCache(void* cache)
 {
     Cache* pcache = cache;
+    for(int i = 0; i < MAX_BLOCK_NUM; i++)
+    {
+	if(pcache->blocks[i] != NULL)
+	{
+	    if(pcache->blocks[i]->buffer != NULL)
+	    {
+		free(pcache->blocks[i]->buffer);
+	    }
+	    free(pcache->blocks[i]);
+	}
+    }
     free(pcache);
 }
 
@@ -151,9 +197,53 @@ int slimCache(MemCache* memcache, int size)
     return 0;
 }
 
-//キャッシュブロックに要求が満たせるか判定
-//要求がキャッシュにあるのか
+//キャッシュブロックからバッファへコピー
+int readBlock(CacheBlock* block, char* buf, int offset, int size)
+{
+    if((offset > BLOCK_SIZE) | (size > BLOCK_SIZE))
+    {
+	return -1;
+    }
+    memcpy(buf, block->buffer + offset, size);
+    return size;
+}
 
+//キャッシュがあれば該当部分をコピー、なければ相当部分を外部へリクエスト
+int readCache(Cache* cache, char* buf, int offset, int size)
+{
+    int start, end, read_size, read_offset, rc;
+    CacheBlock* block;
+
+    start = offset / BLOCK_SIZE;
+    end = (offset + size) / BLOCK_SIZE;
+    for(int i = start; i <= end; i++)
+    {
+	if(size > BLOCK_SIZE)
+	{
+	    read_size = BLOCK_SIZE;
+	}
+	else
+	{
+	    read_size = size;
+	}
+
+	if(offset > (i * BLOCK_SIZE))
+	{
+	    read_offset = offset - (i * BLOCK_SIZE);
+	}
+	else
+	{
+	    read_offset = 0;
+	}
+	//キャッシュ読み込み
+		
+	//外部リクエスト
+
+	//キャッシュ追加
+	
+	size -= read_size;
+    }
+}
 
 //バッファをキャッシュに書き込む。書き込み場所によっては既存キャッシュを統合・上書きする。
 
