@@ -6,22 +6,32 @@
 #define BLOCK_SIZE 10240 // 10KB
 #define MAX_CACHE_SIZE 104857600 //100MB
 
-//ファイルの部分ごとにキャッシュ＆統合もできる
-//blocksはCacheBlockの配列である。
+/* キャッシュの理想的な要件
+ * - 部分的にキャッシュされる
+ * - リクエストによって徐々にキャッシュが補完される
+ * - 足りない部分だけをもってきてキャッシュと組み合わせる
+ * - 全体のキャッシュ制限を超えないようにする
+ */
 
-typedef struct CacheBlock
-{
-    void* buffer;
-    int begin;
-    int end;
-} CacheBlock;
+/* キャッシュのミドル要件
+ * - リクエスト履歴を保持
+ * - 少しでも足りなければ、キャッシュはヒットしていない
+ * - 全体のキャッシュ制限を超えないようにする
+ */
 
+/* キャッシュの最低要件
+ * - リクエストに関わらず一括でメモリに乗せる
+ * - 全体のキャッシュ制限を超えないようにする
+ */
+
+//ファイルごとにキャッシュ＆統合もできる
 typedef struct Cache
 {
-    List* blocks; //CacheBlock
+    char* buffer; //CacheBlock
     int opened;
     int size;
     int mtime;
+    int dirty;
 } Cache;
 
 typedef struct MemCache
@@ -101,17 +111,9 @@ int validateCache(Cache* cache, int mtime)
     return 0;
 }
 
-void freeCacheBlock(void* block)
-{
-    CacheBlock* pblock = block;
-    free(pblock->buffer);
-    free(block);
-}
-
 void freeCache(void* cache)
 {
     Cache* pcache = cache;
-    freeList(pcache->blocks, freeCacheBlock);
     free(pcache);
 }
 
@@ -150,40 +152,10 @@ int slimCache(MemCache* memcache, int size)
 }
 
 //キャッシュブロックに要求が満たせるか判定
-int hasCacheBlock(CacheBlock* block, int offset, int size)
-{
-    int end = offset + size;
-    if((block->begin <= offset) & (end <= block->end))
-    {
-	return 1;
-    }
-    return 0;
-}
-
 //要求がキャッシュにあるのか
-int hasCache(Cache* cache, int offset, int size)
-{
-    CacheBlock* block;
-    for(Node* node = cache->blocks->head; node != NULL; node = node->next)
-    {
-	if(hasCacheBlock((CacheBlock*)node->data, offset, size))
-	{
-	    return 1;
-	}
-    }
-    return 0;
-}
 
-//バッファにキャッシュがヒットしたものをコピーする。ヒットしなかった箇所のリストを返す。
-int ReadCache(Cache* cache, char* buf, int offset, int size)
-{
-}
 
 //バッファをキャッシュに書き込む。書き込み場所によっては既存キャッシュを統合・上書きする。
-int WriteCache(Cache* cache, char* buf, int offset, int size)
-{
-    ;
-}
 
 int main()
 {
