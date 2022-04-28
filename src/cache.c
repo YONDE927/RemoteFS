@@ -2,6 +2,7 @@
 #include <string.h>
 #include "list.h"
 #include "map.h"
+#include "conn.h"
 
 #define BLOCK_SIZE 10240 // 10KB
 #define MAX_BLOCK_NUM 100 // 10KB
@@ -21,6 +22,8 @@
  * - 1mbを超えれば、データのキャッシュはやめる
  * - 全体のキャッシュ制限を超えないようにする
  */
+
+//ローカルストレージのファイルシステムがキャッシュの機能を果たしているかも
 
 //ファイルごとにキャッシュ＆統合もできる
 typedef struct CacheBlock
@@ -197,6 +200,22 @@ int slimCache(MemCache* memcache, int size)
     return 0;
 }
 
+int writeBlock(CacheBlock* block, char* buf, int offset, int size)
+{
+    if(block->buffer == NULL)
+    {
+	block->buffer = malloc(BLOCK_SIZE);
+    }
+    if((offset > BLOCK_SIZE) | (size > BLOCK_SIZE))
+    {
+	return -1;
+    }
+    memcpy(block->buffer + offset, buf, size);
+    return size;
+}
+
+int writeCache(Cache* cache, char* buf, int offset, int size);
+
 //キャッシュブロックからバッファへコピー
 int readBlock(CacheBlock* block, char* buf, int offset, int size)
 {
@@ -209,11 +228,12 @@ int readBlock(CacheBlock* block, char* buf, int offset, int size)
 }
 
 //キャッシュがあれば該当部分をコピー、なければ相当部分を外部へリクエスト
-int readCache(Cache* cache, char* buf, int offset, int size)
+int readCache(Cache* cache,FileSession* session, char* buf, int offset, int size)
 {
-    int start, end, read_size, read_offset, rc;
+    int start, end, nread,read_size, read_offset, rc;
     CacheBlock* block;
-
+    
+    nread = size;
     start = offset / BLOCK_SIZE;
     end = (offset + size) / BLOCK_SIZE;
     for(int i = start; i <= end; i++)
@@ -236,12 +256,29 @@ int readCache(Cache* cache, char* buf, int offset, int size)
 	    read_offset = 0;
 	}
 	//キャッシュ読み込み
+	if(cache->blocks[i] != NULL)
+	{
+	    rc = readBlock(cache->blocks[i], buf, read_offset, read_size);
+	    if(rc < 0)
+	    {
+		return -1;
+	    }
+	    buf += rc;
+	}
+	else
+	{
+	    //外部リクエスト
+	    session->offset = read_offset;
+	    rc = connRead(session, buf, read_size);
+	    if(rc < 0)
+	    {
+		return -1;
+	    }
+	    buf += rc;
+	    //キャッシュ追加
 		
-	//外部リクエスト
-
-	//キャッシュ追加
-	
-	size -= read_size;
+	    size -= read_size;
+	}
     }
 }
 
