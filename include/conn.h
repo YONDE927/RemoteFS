@@ -33,8 +33,8 @@ int connInit(Connector* connector,Authinfo* authinfo);
 List* connReaddir(const char* path);
 Attribute* connStat(const char* path);
 FileSession* connOpen(const char* path, int flag);
-int connRead(FileSession* file, void* buffer, int size);
-int connWrite(FileSession* file, void* buffer, int size);
+int connRead(FileSession* file,off_t offset, void* buffer, int size);
+int connWrite(FileSession* file,off_t offset, void* buffer, int size);
 int connClose(FileSession* file);
 
 
