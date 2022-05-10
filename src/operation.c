@@ -16,20 +16,18 @@ int oarRead(FileHandler* fh, char *buffer, size_t size, off_t offset, int flag)
 
     if(flag==1)
     {
-	fh->session->offset = offset;
-	//通信呼び出し
-	rc = connRead(fh->session, buffer, size);
-	if(rc < 0)
-	{
-	    return -1;
-	}
-	//オフセットの設定 
-	fh->session->offset += rc;
-	return rc;
+        //通信呼び出し
+        rc = connRead(fh->session, offset, buffer, size);
+        if(rc < 0)
+        {
+            return -1;
+        }
+        //オフセットの設定 
+        return rc;
     }
     else
     {
-	return -1;
+        return -1;
     }
     fh->offset += rc;
     return rc;

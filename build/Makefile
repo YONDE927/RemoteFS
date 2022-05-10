@@ -6,7 +6,7 @@ TESTD = ../test/
 
 #remotefs
 all: conn utils test
-	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o -lssh -lfuse3
+	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o -lssh -lfuse3 -lpthread
 
 #attribute
 attribute: list
@@ -44,7 +44,7 @@ test: test-conn test-utils test-clean
 	echo "Hello connRead test." > /tmp/connRead.txt
 	touch /tmp/connWrite.txt
 test-conn: conn utils
-	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}test-conn.c obj/list.o obj/conn.o obj/attribute.o -lssh
+	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}test-conn.c obj/list.o obj/conn.o obj/attribute.o -lssh -lpthread
 test-utils: utils
 	${CC} ${CFLAG} ${INC} -o test/test-utils ${TESTD}test-utils.c obj/list.o obj/map.o
 test-clean:

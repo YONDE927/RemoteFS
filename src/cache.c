@@ -9,21 +9,6 @@
 #define MAX_FILE_SIZE 1024000 //1MB
 #define MAX_CACHE_SIZE 104857600 //100MB
 
-/* キャッシュの理想的な要件
- * - 部分的にキャッシュされる
- * - リクエストによって徐々にキャッシュが補完される
- * - 足りない部分だけをもってきてキャッシュと組み合わせる
- * - 全体のキャッシュ制限を超えないようにする
- */
-
-/* キャッシュの現在要件
- * - 部分的にキャッシュされる
- * - 1mbまでのファイルしかキャッシュしない
- * - 1mbを超えれば、データのキャッシュはやめる
- * - 全体のキャッシュ制限を超えないようにする
- */
-
-//ローカルストレージのファイルシステムがキャッシュの機能を果たしているかも
 
 //ファイルごとにキャッシュ＆統合もできる
 typedef struct CacheBlock
@@ -53,9 +38,9 @@ MemCache* getMemCache()
     static MemCache* memcache = NULL;
     if(memcache == NULL)
     {
-	memcache = malloc(sizeof(MemCache));
-	memcache->cache_queue = newList();
-	memcache->cache_map = newStrMap();
+    memcache = malloc(sizeof(MemCache));
+    memcache->cache_queue = newList();
+    memcache->cache_map = newStrMap();
     }
     return memcache;
 }
@@ -82,7 +67,7 @@ Cache* lookupCache(char* path)
 
     if(memcache == NULL)
     {
-	return NULL;
+    return NULL;
     }
     cache = getStrMap(memcache->cache_map, path);
     return cache;
@@ -116,7 +101,7 @@ int registerCache(char* path, Cache* cache)
 
     if(memcache == NULL)
     {
-	return -1;
+    return -1;
     }
     slimCache(memcache, cache->size);
     insStrMap(memcache->cache_map, path, cache, sizeof(Cache)); 
@@ -129,11 +114,11 @@ int validateCache(Cache* cache, int mtime)
 {
     if(cache == NULL)
     {
-	return -1;
+    return -1;
     }
     if(cache->mtime > mtime)
     {
-	return 1;
+    return 1;
     }
     return 0;
 }
@@ -144,7 +129,7 @@ void freeBlock(void* block)
 
     if(pblock->buffer != NULL)
     {
-	free(pblock->buffer);
+    free(pblock->buffer);
     }
     free(pblock);
 }
@@ -154,14 +139,14 @@ void freeCache(void* cache)
     Cache* pcache = cache;
     for(int i = 0; i < MAX_BLOCK_NUM; i++)
     {
-	if(pcache->blocks[i] != NULL)
-	{
-	    if(pcache->blocks[i]->buffer != NULL)
-	    {
-		free(pcache->blocks[i]->buffer);
-	    }
-	    free(pcache->blocks[i]);
-	}
+    if(pcache->blocks[i] != NULL)
+    {
+        if(pcache->blocks[i]->buffer != NULL)
+        {
+        free(pcache->blocks[i]->buffer);
+        }
+        free(pcache->blocks[i]);
+    }
     }
     free(pcache);
 }
@@ -186,16 +171,16 @@ int slimCache(MemCache* memcache, int size)
     //余地があれば終了
     if(room > size)
     {
-	return 0;
+    return 0;
     }
     //余地がサイズ分を超えるまでキューの前から削除
     while(room < size)
     {
-	path = queue->head->data;
-	cache = lookupCache(path);
-	room += cache->size;
-	delCache(memcache, path);
-	pop_front(queue, free);
+    path = queue->head->data;
+    cache = lookupCache(path);
+    room += cache->size;
+    delCache(memcache, path);
+    pop_front(queue, free);
     }
     return 0;
 }
@@ -204,11 +189,11 @@ int writeBlock(CacheBlock* block, char* buf, int offset, int size)
 {
     if(block->buffer == NULL)
     {
-	block->buffer = malloc(BLOCK_SIZE);
+    block->buffer = malloc(BLOCK_SIZE);
     }
     if((offset > BLOCK_SIZE) | (size > BLOCK_SIZE))
     {
-	return -1;
+    return -1;
     }
     memcpy(block->buffer + offset, buf, size);
     return size;
@@ -221,7 +206,7 @@ int readBlock(CacheBlock* block, char* buf, int offset, int size)
 {
     if((offset > BLOCK_SIZE) | (size > BLOCK_SIZE))
     {
-	return -1;
+    return -1;
     }
     memcpy(buf, block->buffer + offset, size);
     return size;
@@ -238,48 +223,47 @@ int readCache(Cache* cache,FileSession* session, char* buf, int offset, int size
     end = (offset + size) / BLOCK_SIZE;
     for(int i = start; i <= end; i++)
     {
-	if(size > BLOCK_SIZE)
-	{
-	    read_size = BLOCK_SIZE;
-	}
-	else
-	{
-	    read_size = size;
-	}
+        if(size > BLOCK_SIZE)
+        {
+            read_size = BLOCK_SIZE;
+        }
+        else
+        {
+            read_size = size;
+        }
 
-	if(offset > (i * BLOCK_SIZE))
-	{
-	    read_offset = offset - (i * BLOCK_SIZE);
-	}
-	else
-	{
-	    read_offset = 0;
-	}
-	//キャッシュ読み込み
-	if(cache->blocks[i] != NULL)
-	{
-	    rc = readBlock(cache->blocks[i], buf, read_offset, read_size);
-	    if(rc < 0)
-	    {
-		return -1;
-	    }
-	    buf += rc;
-	}
-	else
-	{
-	    //外部リクエスト
-	    session->offset = read_offset;
-	    rc = connRead(session, buf, read_size);
-	    if(rc < 0)
-	    {
-		return -1;
-	    }
-	    buf += rc;
-	    //キャッシュ追加
-		
-	    size -= read_size;
-	}
+        if(offset > (i * BLOCK_SIZE))
+        {
+            read_offset = offset - (i * BLOCK_SIZE);
+        }
+        else
+        {
+            read_offset = 0;
+        }
+        //キャッシュ読み込み
+        if(cache->blocks[i] != NULL)
+        {
+            rc = readBlock(cache->blocks[i], buf, read_offset, read_size);
+            if(rc < 0)
+            {
+                return -1;
+            }
+            buf += rc;
+            }
+        else
+        {
+            //外部リクエスト
+            rc = connRead(session, read_offset, buf, read_size);
+            if(rc < 0)
+            {
+                return -1;
+            }
+            buf += rc;
+            //キャッシュ追加
+            size -= read_size;
+        }
     }
+    return nread;
 }
 
 //バッファをキャッシュに書き込む。書き込み場所によっては既存キャッシュを統合・上書きする。

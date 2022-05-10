@@ -4,6 +4,7 @@
 
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+#include <pthread.h>
 #include "entry.h"
 #include "list.h"
 
@@ -11,6 +12,7 @@ typedef struct Connector
 {
     ssh_session m_ssh;
     sftp_session m_sftp;
+    pthread_mutex_t mutex;
 } Connector;
 
 typedef struct Authinfo
@@ -23,7 +25,6 @@ typedef struct Authinfo
 typedef struct FileSession
 {
     char* path;
-    off_t offset;
     sftp_file fh;
 } FileSession;
 
@@ -36,6 +37,7 @@ FileSession* connOpen(const char* path, int flag);
 int connRead(FileSession* file,off_t offset, void* buffer, int size);
 int connWrite(FileSession* file,off_t offset, void* buffer, int size);
 int connClose(FileSession* file);
+int connStatus();
 
 
 

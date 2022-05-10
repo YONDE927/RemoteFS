@@ -9,7 +9,7 @@ int test_list()
     char* docs[] = {"Apple","Banana","Grape"};
     for(int i=0;i<6;i++)
     {
-	push_back(intlist,&array[i],sizeof(int));
+    push_back(intlist,&array[i],sizeof(int));
     }
     printList(intlist,printInt);
     printf("size of list is %d\n",length(intlist));
@@ -18,7 +18,7 @@ int test_list()
     List* strlist = newList();
     for(int i=0;i<3;i++)
     {
-	push_back(strlist,docs[i],strlen(docs[i])+1);
+    push_back(strlist,docs[i],strlen(docs[i])+1);
     }
     printList(strlist,printStr);
     printf("size of list is %d\n",length(strlist));
@@ -30,18 +30,18 @@ int test_strmap()
 {
     StrMap* map = newStrMap();
     char* keys[] = {
-	"red","green","yellow"
+    "red","green","yellow"
     };
     char* values[] = {
-	"apple","kiwii","banana"
+    "apple","kiwii","banana"
     };
     char* query[] = {"red","purple"};
     for(int i=0;i<3;i++)
     {
-	insStrMap(map,keys[i],values[i],strlen(values[i])+1);
+    insStrMap(map,keys[i],values[i],strlen(values[i])+1);
     }
     printStrMap(map);
-    delStrMap(map,query[0]);
+    delStrMap(map,query[0],free);
     printStrMap(map);
     printf("key<%s> = value<%s>\n",query[0],(char*)getStrMap(map, query[0]));
 
@@ -54,12 +54,12 @@ int test_intmap()
     IntMap* map = newIntMap();
     int keys[] = {1,2,3};
     char* values[] = {
-	"apple","kiwii","banana"
+    "apple","kiwii","banana"
     };
     int query[] = {1,3};
     for(int i=0;i<3;i++)
     {
-	insIntMap(map,keys[i],values[i],strlen(values[i])+1);
+    insIntMap(map,keys[i],values[i],strlen(values[i])+1);
     }
     printIntMap(map);
     delIntMap(map,query[0]);

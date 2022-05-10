@@ -14,7 +14,7 @@ int StrMapKey(char* str)
     unsigned int ret = 0;
     for(;(*str)!='\0';str++)
     {
-	ret += (int)*str;
+    ret += (int)*str;
     }
     //printf("%s chain is %d\n",str,ret % HASH_SIZE);
     return ret % HASH_SIZE;
@@ -25,10 +25,10 @@ void* getStrMap(StrMap* map,char* key)
     StrMapNode* pNode = map->hash[StrMapKey(key)];
     for(;pNode!=NULL;pNode=pNode->next)
     {
-	if(strcmp(pNode->key, key) == 0)
-	{
-	    return pNode->value;
-	}
+    if(strcmp(pNode->key, key) == 0)
+    {
+        return pNode->value;
+    }
     }
     return NULL;
 }
@@ -62,32 +62,32 @@ void delStrMap(StrMap* map, char* key, void(*fptr)(void*))
     StrMapNode* prev = NULL;
     for(;pNode!=NULL;pNode=pNode->next)
     {
-	printf("search map %s\n",key);
-	if(strcmp(pNode->key, key) == 0)
-	{
-	    //前のノードのnextに次のノードのアドレスを譲渡
-	    if(prev!=NULL)
-	    {
-		if(pNode->next!=NULL)
-		{
-		    prev->next = pNode->next;
-		}
-	    }
-	    else
-	    {
-		//最初のノードの場合
-		map->hash[mapchain] = pNode->next;
-	    }
-	    //ノードのメモリを解放
-	    free(pNode->key);
-	    free(pNode->value);
-	    free(pNode);
-	    break;
-	}
-	else
-	{
-	    prev = pNode;
-	}
+    printf("search map %s\n",key);
+    if(strcmp(pNode->key, key) == 0)
+    {
+        //前のノードのnextに次のノードのアドレスを譲渡
+        if(prev!=NULL)
+        {
+        if(pNode->next!=NULL)
+        {
+            prev->next = pNode->next;
+        }
+        }
+        else
+        {
+        //最初のノードの場合
+        map->hash[mapchain] = pNode->next;
+        }
+        //ノードのメモリを解放
+        free(pNode->key);
+        free(pNode->value);
+        free(pNode);
+        break;
+    }
+    else
+    {
+        prev = pNode;
+    }
     }
 }
 
@@ -97,12 +97,12 @@ int lenStrMap(StrMap* map)
     StrMapNode* pNode;
     for ( i = 0 ; i < HASH_SIZE ; i ++ )
     {
-	pNode = map->hash[i];
-	while(pNode)
-	{
-	    size++;
-	    pNode = pNode->next;
-	}
+    pNode = map->hash[i];
+    while(pNode)
+    {
+        size++;
+        pNode = pNode->next;
+    }
     }
     return size;
 }
@@ -113,12 +113,12 @@ void mapStrMap(StrMap* map, void* buf, void(*func)(void*,void*))
     StrMapNode* pNode;
     for ( i = 0 ; i < HASH_SIZE ; i ++ )
     {
-	pNode = map->hash[i];
-	while(pNode)
-	{
-	    func(pNode->value, buf);
-	    pNode = pNode->next;
-	}
+    pNode = map->hash[i];
+    while(pNode)
+    {
+        func(pNode->value, buf);
+        pNode = pNode->next;
+    }
     }
 }
 
@@ -129,15 +129,15 @@ void freeStrMap(StrMap* map)
     StrMapNode* pNext;
     for ( i = 0 ; i < HASH_SIZE ; i ++ )
     {
-	pNode = map->hash[i];
-	while(pNode)
-	{
-	    pNext = pNode->next;
-	    free(pNode->key);
-	    free(pNode->value);
-	    free(pNode);
-	    pNode = pNext;
-	}	    
+    pNode = map->hash[i];
+    while(pNode)
+    {
+        pNext = pNode->next;
+        free(pNode->key);
+        free(pNode->value);
+        free(pNode);
+        pNode = pNext;
+    }        
     }
 }
 
@@ -148,12 +148,12 @@ void printStrMap(StrMap* map)
     printf("map contents\n");
     for ( i = 0 ; i < HASH_SIZE ; i ++ )
     {
-	pNode = map->hash[i];
-	while(pNode)
-	{
-	    printf("key<%s> = value<%s>\n",pNode->key,(char*)pNode->value);
-	    pNode = pNode->next;
-	}
+    pNode = map->hash[i];
+    while(pNode)
+    {
+        printf("key<%s> = value<%s>\n",pNode->key,(char*)pNode->value);
+        pNode = pNode->next;
+    }
     }
     printf("map size is %d\n",lenStrMap(map));
 }
@@ -171,10 +171,10 @@ void* getIntMap(IntMap* map,int key)
     IntMapNode* pNode = map->head;
     for(;pNode!=NULL;pNode=pNode->next)
     {
-	if(pNode->key == key)
-	{
-	    return pNode->value;
-	}
+    if(pNode->key == key)
+    {
+        return pNode->value;
+    }
     }
     return NULL;
 }
@@ -204,27 +204,27 @@ void delIntMap(IntMap* map, int key)
     IntMapNode* prev = NULL;
     for(;pNode!=NULL;pNode=pNode->next)
     {
-	if(pNode->key == key)
-	{
-	    //前のノードのnextに次のノードのアドレスを譲渡
-	    if(prev!=NULL)
-	    {
-		prev->next = pNode->next;
-	    }
-	    else
-	    {
-		//最初のノードの場合
-		map->head = pNode->next;
-	    }
-	    //ノードのメモリを解放
-	    free(pNode->value);
-	    free(pNode);
-	    break;
-	}
-	else
-	{
-	    prev = pNode;
-	}
+    if(pNode->key == key)
+    {
+        //前のノードのnextに次のノードのアドレスを譲渡
+        if(prev!=NULL)
+        {
+        prev->next = pNode->next;
+        }
+        else
+        {
+        //最初のノードの場合
+        map->head = pNode->next;
+        }
+        //ノードのメモリを解放
+        free(pNode->value);
+        free(pNode);
+        break;
+    }
+    else
+    {
+        prev = pNode;
+    }
     }
 }
 
@@ -235,8 +235,8 @@ int lenIntMap(IntMap* map)
     pNode = map->head;
     while(pNode)
     {
-	size++;
-	pNode = pNode->next;
+    size++;
+    pNode = pNode->next;
     }
     return size;
 }
@@ -249,11 +249,11 @@ void freeIntMap(IntMap* map)
     pNode = map->head;
     while(pNode)
     {
-	pNext = pNode->next;
-	free(pNode->value);
-	free(pNode);
-	pNode = pNext;
-    }	    
+    pNext = pNode->next;
+    free(pNode->value);
+    free(pNode);
+    pNode = pNext;
+    }        
 }
 
 
@@ -265,8 +265,8 @@ void printIntMap(IntMap* map)
     pNode = map->head;
     while(pNode)
     {
-	printf("key<%d> = value<%s>\n",pNode->key,(char*)pNode->value);
-	pNode = pNode->next;
+    printf("key<%d> = value<%s>\n",pNode->key,(char*)pNode->value);
+    pNode = pNode->next;
     }
     printf("map size is %d\n",lenIntMap(map));
 }

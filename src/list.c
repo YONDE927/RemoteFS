@@ -32,17 +32,17 @@ void push_back(List* list, void* Data, int SizeofData)
     //リストが空の場合は先頭に新ノードを登録する。空でなければ最後のノードまで移動する。
     if(list->head == NULL)
     {
-	list->head = newNode;
+    list->head = newNode;
     }
     else
     {
-	Node* pNode = list->head;
-	while(pNode->next != NULL)
-	{
-	    pNode = pNode->next;
-	}
-	//最後のノードのnextにnewNodeを代入
-	pNode->next = newNode;
+    Node* pNode = list->head;
+    while(pNode->next != NULL)
+    {
+        pNode = pNode->next;
+    }
+    //最後のノードのnextにnewNodeを代入
+    pNode->next = newNode;
     }
 }
 
@@ -52,9 +52,9 @@ void pop_front(List* list, void (*fptr)(void*))
     
     if(node != NULL)
     {
-	node = list->head; 
-	list->head = node->next;
-	fptr(node->data);
+    node = list->head; 
+    list->head = node->next;
+    fptr(node->data);
     }
 }
 
@@ -62,11 +62,11 @@ void freeNode(Node* pNode, void (*fptr)(void *))
 {
     if(fptr == NULL)
     {
-	free(pNode->data);
+    free(pNode->data);
     }
     else
     {
-	fptr(pNode->data);
+    fptr(pNode->data);
     }
     free(pNode);
 }
@@ -77,9 +77,9 @@ void freeList(List* list, void (*fptr)(void *))
     Node* tmp;
     while(pNode != NULL)
     {
-	tmp = pNode;
-	pNode = pNode->next;
-	freeNode(tmp, fptr);
+    tmp = pNode;
+    pNode = pNode->next;
+    freeNode(tmp, fptr);
     }
 }
 
@@ -88,8 +88,8 @@ void printList(List* list, void (*fptr)(void *))
     Node* pNode = list->head;
     while(pNode != NULL)
     {
-	fptr(pNode->data);
-	pNode = pNode->next;
+    fptr(pNode->data);
+    pNode = pNode->next;
     }
 }
 
@@ -109,8 +109,8 @@ int length(List* list)
     Node* pNode = list->head;
     while(pNode != NULL)
     {
-	cnt++;
-	pNode = pNode->next;
+    cnt++;
+    pNode = pNode->next;
     }
     return cnt;
 }

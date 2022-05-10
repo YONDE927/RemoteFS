@@ -34,21 +34,21 @@ Args* getArgs(char* RemoteRoot, char* SshConfig)
     int len;
     if(args == NULL)
     {
-	args = malloc(sizeof(Args));
-	if(RemoteRoot != NULL)
-	{
-	    len = strlen(RemoteRoot);
-	    args->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
-	    strncpy(args->RemoteRoot, RemoteRoot, len);
-	    args->RemoteRoot[len] = '\0';
-	}
-	if(SshConfig != NULL)
-	{
-	    len = strlen(SshConfig);
-	    args->SshConfig = malloc(sizeof(char) * (len + 1)); 
-	    strncpy(args->SshConfig, SshConfig, len);
-	    args->SshConfig[len] = '\0';
-	}
+    args = malloc(sizeof(Args));
+    if(RemoteRoot != NULL)
+    {
+        len = strlen(RemoteRoot);
+        args->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
+        strncpy(args->RemoteRoot, RemoteRoot, len);
+        args->RemoteRoot[len] = '\0';
+    }
+    if(SshConfig != NULL)
+    {
+        len = strlen(SshConfig);
+        args->SshConfig = malloc(sizeof(char) * (len + 1)); 
+        strncpy(args->SshConfig, SshConfig, len);
+        args->SshConfig[len] = '\0';
+    }
     }
     return args;
 }
@@ -58,34 +58,34 @@ FsData* getFsData()
     static FsData* fs = NULL;
     if(fs == NULL)
     {
-	int len;
-	Args* args;
-	Connector* connecotor;
+    int len;
+    Args* args;
+    Connector* connecotor;
 
-	args = getArgs(NULL,NULL);
-	if(args == NULL)
-	{
-	    printf("no args\n");
-	    exit(EXIT_FAILURE);
-	}
+    args = getArgs(NULL,NULL);
+    if(args == NULL)
+    {
+        printf("no args\n");
+        exit(EXIT_FAILURE);
+    }
 
-	fs = malloc(sizeof(FsData));
-	fs->FhMap = newIntMap();
-	//SSH接続とSFTPセッションの確立 
-	connecotor = getConnector(args->SshConfig);
-	if(connecotor == NULL)
-	{
-	    printf("SSH session is not established\n");
-	    exit(EXIT_FAILURE);
-	}
+    fs = malloc(sizeof(FsData));
+    fs->FhMap = newIntMap();
+    //SSH接続とSFTPセッションの確立 
+    connecotor = getConnector(args->SshConfig);
+    if(connecotor == NULL)
+    {
+        printf("SSH session is not established\n");
+        exit(EXIT_FAILURE);
+    }
 
-	//FsDataにリモートサーバーのルートパスを設定
-	len = strlen(args->RemoteRoot);
-	fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
-	strncpy(fs->RemoteRoot, args->RemoteRoot, len);
-	fs->RemoteRoot[len] = '\0';
-	
-	printf("Init %s\n", fs->RemoteRoot);
+    //FsDataにリモートサーバーのルートパスを設定
+    len = strlen(args->RemoteRoot);
+    fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
+    strncpy(fs->RemoteRoot, args->RemoteRoot, len);
+    fs->RemoteRoot[len] = '\0';
+    
+    printf("Init %s\n", fs->RemoteRoot);
     }
     return fs;
 }
@@ -129,13 +129,57 @@ int fuseGetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
     attr = connStat(RemotePath);
     if(attr == NULL)
     {
-	printf("connStat error\n");
-	free(RemotePath);
-	return -ENOENT;
+        printf("connStat error\n");
+        free(RemotePath);
+        return -ENOENT;
     }
     *stbuf = attr->st;
     free(RemotePath);
     return 0;
+}
+
+int pair_max(int a,int b)
+{
+    if(a > b){
+        return a;
+    }else{
+        return b;
+    }
+}
+
+int max(int tmp, int* li, int size)
+{
+    if(size <= 1){
+        return pair_max(tmp, li[0]);
+    }else{
+        tmp = pair_max(tmp, li[0]);
+        size--;
+        return max(tmp, li + 1, size);
+    }
+}
+
+int newhandler(IntMap* map)
+{
+    int map_size,ind,fh,top;
+    int* fhs;
+    if(map == NULL)
+    {
+        return -1;
+    }
+
+    map_size = lenIntMap(map);
+    fhs = malloc(sizeof(int) * map_size);
+    ind = 0;
+    for(IntMapNode* node = map->head; node != NULL; node = node->next)
+    {
+        fh = node->key;
+        fhs[ind] = fh;
+        ind++;
+    }
+    //search new file handler
+    top = max(fhs[0], fhs, map_size) + 1;
+    free(fhs);
+    return top;
 }
 
 int fuseOpen(const char *path, struct fuse_file_info *fi)
@@ -149,46 +193,22 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
 
     //ファイルハンドラマップを取得
     FhMap = getFhMap();
-    /* Passing 'const char *' to parameter of type 'char *' discards qualifiers* ファイルハンドラの生成 */
-    //list opened file handers
-    map_size = lenIntMap(FhMap);
-    int* fhs = malloc(sizeof(int) * map_size);
-    ind = 0;
-    for(IntMapNode* node = FhMap->head; node != NULL; node = node->next)
-    {
-	fh = node->key;
-	fhs[ind] = fh;
-	ind++;
-    }
-    //search new file handler
-    for(int i = 0; ; i++)
-    {
-	int isNew = 1;
-	for(int j = 0; j < map_size; j++)
-	{
-	    if(i == fhs[j])
-	    {
-		isNew = 0;
-	    }
-	}
-	if(isNew)
-	{
-	    fh = i;
-	    break;
-	}
-    }
-    //探索用ファイルハンドラリストの解放
-    free(fhs);
+    fh = newhandler(FhMap);
 
-    /* リモートファイルのオープン */
+
+    
+    /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション
+     * リモートファイルのオープン */
     RemotePath = patheditor(path);
     session = connOpen(RemotePath, fi->flags);
     if(session == NULL)
     {
-	free(RemotePath);
-	return -ENOENT;
+        free(RemotePath);
+        return -ENOENT;
     }
     file.session = session;
+    /* リモートを参照ここまで*/
+
     free(RemotePath);
 
     /* ファイルハンドラの管理用マップ構造体へ登録 */
@@ -209,23 +229,23 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-	return -EBADFD;
+    return -EBADFD;
     }
    
     //オフセットの設定 
     fh->offset = offset;
-    fh->session->offset = offset;
 
+    /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
-    rc = connRead(fh->session, buffer, size);
+    rc = connRead(fh->session, offset, buffer, size);
     if(rc < 0)
     {
-	return -ENETDOWN;
+    return -ENETDOWN;
     }
+    /* リモートを参照ここまで*/
 
     //オフセットの設定 
     fh->offset += rc;
-    fh->session->offset += rc;
     return rc;
 }
 
@@ -241,23 +261,23 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-	return -EBADFD;
+    return -EBADFD;
     }
    
     //オフセットの設定 
     fh->offset = offset;
-    fh->session->offset = offset;
 
+    /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
-    rc = connWrite(fh->session, (void*)buffer, size);
+    rc = connWrite(fh->session, offset, (void*)buffer, size);
     if(rc < 0)
     {
-	return -ENETDOWN;
+    return -ENETDOWN;
     }
+    /* リモートを参照ここまで*/
 
     //オフセットの設定 
     fh->offset += rc;
-    fh->session->offset += rc;
 
     return rc;    
 }
@@ -274,15 +294,17 @@ int fuseRelease(const char *path, struct fuse_file_info *fi)
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-	return -EBADFD;
+    return -EBADFD;
     }
    
+    /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
     rc = connClose(fh->session);
     if(rc < 0)
     {
-	return -ENETDOWN;
+    return -ENETDOWN;
     }
+    /* リモートを参照ここまで*/
 
     //対象ファイルのFileHandlerをfhMapから削除して解放
     delIntMap(FhMap, fi->fh);
@@ -300,12 +322,12 @@ int fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     attrs = connReaddir(RemotePath); 
     if(attrs == NULL)
     {
-	return -ENETDOWN;
+        return -ENETDOWN;
     }
     for(Node* node = attrs->head; node != NULL; node = node->next)
     {
-	attr = node->data;
-	filler(buf, attr->path, &(attr->st), 0, FUSE_FILL_DIR_PLUS);
+        attr = node->data;
+        filler(buf, attr->path, &(attr->st), 0, FUSE_FILL_DIR_PLUS);
     }
     freeList(attrs, freeAttr);
 
@@ -338,11 +360,10 @@ off_t fuseLseek(const char *path, off_t offset, int whence, struct fuse_file_inf
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-	return -EBADFD;
+    return -EBADFD;
     }
    
     fh->offset = offset;
-    fh->session->offset = offset;
     return fh->offset;
 }
 
@@ -369,8 +390,8 @@ int main(int argc, char* argv[])
 
     if(argc < 4)
     {
-	printf("RemoteFs [mountpoint] [remoteroot] [ssh.config]\n");
-	exit(EXIT_FAILURE);
+    printf("RemoteFs [mountpoint] [remoteroot] [ssh.config]\n");
+    exit(EXIT_FAILURE);
     }
 
     //Argsの取得
@@ -381,11 +402,11 @@ int main(int argc, char* argv[])
 
     for (i=0, new_argc=0; (i<argc) && (new_argc<10); i++)
     {
-	if((i != 2) & (i != 3))
-	{
-	    printf("%s\n",argv[i]);
-	    new_argv[new_argc++] = argv[i];
-	}
+    if((i != 2) & (i != 3))
+    {
+        printf("%s\n",argv[i]);
+        new_argv[new_argc++] = argv[i];
+    }
     }
 
     return fuse_main(new_argc, new_argv, &fuseOper, NULL);

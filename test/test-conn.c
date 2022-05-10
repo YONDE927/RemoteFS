@@ -10,28 +10,28 @@ int main(int argc, char**argv)
     Attribute* attr;
     if(argc < 2)
     {
-	printf("conn.o [SSHCONFIG]\n");
-	exit(EXIT_FAILURE);
+    printf("conn.o [SSHCONFIG]\n");
+    exit(EXIT_FAILURE);
     }
     char* configpath = argv[1];
 
     /* getConnector */
     Connector* connector = getConnector(configpath);
     if(connector==NULL){
-	exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
     }
     Connector* con2 = getConnector(NULL);
     if(con2 != NULL)
     {
-	printf("static conn succeed\n");
+    printf("static conn succeed\n");
     }
 
     /* connReaddir */
     list = connReaddir("/home/yonde/Documents/RemoteFS");
     for(node = list->head; node != NULL; node = node->next)
     {
-	attr = (Attribute*)node->data;
-	printf("%s %ld %ld\n",attr->path,attr->st.st_size,attr->st.st_mtime);		
+    attr = (Attribute*)node->data;
+    printf("%s %ld %ld\n",attr->path,attr->st.st_size,attr->st.st_mtime);        
     }
     freeList(list, freeAttr);
     printf("\n\n");
@@ -41,7 +41,7 @@ int main(int argc, char**argv)
     attr = connStat("/etc/ssh/sshd_config");
     if(attr != NULL)
     {
-	printf("%s %ld %ld\n",attr->path,attr->st.st_size,attr->st.st_mtime);		
+    printf("%s %ld %ld\n",attr->path,attr->st.st_size,attr->st.st_mtime);        
     }
 
     /* Read Write*/
@@ -58,39 +58,39 @@ int main(int argc, char**argv)
     rf1 = connOpen("/tmp/connRead.txt", O_RDONLY);
     if(rf1 < 0)
     {
-	printf("connOpen error\n");
-	exit(EXIT_FAILURE);
+    printf("connOpen error\n");
+    exit(EXIT_FAILURE);
     }
     rf2 = connOpen("/tmp/connWrite.txt", O_RDONLY);
     if(rf2 < 0)
     {
-	printf("connOpen error\n");
-	exit(EXIT_FAILURE);
+    printf("connOpen error\n");
+    exit(EXIT_FAILURE);
     }
     /* connRead */
     printf("\nconnRead\n");
-    nbytes = connRead(rf1, buf, read_size);
+    nbytes = connRead(rf1, 0, buf, read_size);
     if(nbytes > 0)
     {
-	buf[read_size] = '\0';
-	printf("%s\n",buf);
+    buf[read_size] = '\0';
+    printf("%s\n",buf);
     }
     else
     {
-	puts("connRead error");
+    puts("connRead error");
     }
     
     /* connWrite */
     printf("connWrite\n");
     memset(buf, 0, 256);
     creat(path, S_IRWXU);
-    nbytes = connWrite(rf2, write_buf, write_size);
+    nbytes = connWrite(rf2, 0, write_buf, write_size);
     if(nbytes > 0)
     {
-	file = fopen(path, "r");
-	nbytes = fread(buf, sizeof(char), write_size, file);
-	buf[write_size] = '\0';
-	printf("%s\n", buf);
+    file = fopen(path, "r");
+    nbytes = fread(buf, sizeof(char), write_size, file);
+    buf[write_size] = '\0';
+    printf("%s\n", buf);
     }
 
     return 0;
