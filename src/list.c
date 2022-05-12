@@ -52,9 +52,9 @@ void pop_front(List* list, void (*fptr)(void*))
     
     if(node != NULL)
     {
-    node = list->head; 
-    list->head = node->next;
-    fptr(node->data);
+        node = list->head; 
+        list->head = node->next;
+        fptr(node->data);
     }
 }
 
@@ -62,11 +62,11 @@ void freeNode(Node* pNode, void (*fptr)(void *))
 {
     if(fptr == NULL)
     {
-    free(pNode->data);
+        free(pNode->data);
     }
     else
     {
-    fptr(pNode->data);
+        fptr(pNode->data);
     }
     free(pNode);
 }
@@ -77,9 +77,9 @@ void freeList(List* list, void (*fptr)(void *))
     Node* tmp;
     while(pNode != NULL)
     {
-    tmp = pNode;
-    pNode = pNode->next;
-    freeNode(tmp, fptr);
+        tmp = pNode;
+        pNode = pNode->next;
+        freeNode(tmp, fptr);
     }
 }
 

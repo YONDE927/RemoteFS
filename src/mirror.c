@@ -13,11 +13,12 @@
 /**********************/
 
 typedef struct Mirror {
-    int permission;
+    pthread_mutex_t* task_lock;
+    pthread_mutex_t* empty_lock;
     int sizesum;
     sqlite3* dbsession;
-    void* config;
-    List* tasklist;
+    char* root;
+    List* tasklist; //List of MirrorTask
 } Mirror;
 
 typedef struct MirrorFile {
@@ -28,9 +29,24 @@ typedef struct MirrorFile {
     int ref_cnt;
 } MirrorFile;
 
-Mirror* constructMirror(){
+Mirror* constructMirror(char* root){
     return NULL;
 }
+
+void freeMirror();
+
+MirrorFile* constructMirrorFile(char* path, struct stat st){
+    MirrorFile* file;
+    
+    file = malloc(sizeof(MirrorFile));
+    file->path = strdup(path);
+    file->mtime = st.st_mtime;
+    file->atime = st.st_atime;
+    file->size = st.st_size;
+    file->ref_cnt = 0;
+    return file;
+}
+
 
 void showMirrorFile(MirrorFile* file){
     if(file != NULL){
@@ -66,9 +82,40 @@ char* strdup2(const char* str){
     return dest;
 }
 
-char* convertMirrorPath(const char* path){
+/*"/"を"%"に変える*/
+char* convertFileName(const char* path){
+    char* name;
+    int size;
 
+    name = strdup(path);
+    size = strlen(name);
+    for(int i = 0; i < size; i++){
+        if(name[i] == '/'){
+            name[i] = '%';
+        }
+    }
+    return name;
 }
+
+/*実際のミラーファイルのパスを生成*/
+char* getMirrorPath(Mirror* mirror, const char* path){
+    int root_size, path_size;
+    char* mirrorpath, *convertpath;
+
+    convertpath = convertFileName(path);
+
+    root_size = strlen(mirror->root);
+    path_size = strlen(convertpath);
+
+    mirrorpath = malloc(root_size + path_size);
+    strncpy(mirrorpath, mirror->root, root_size + 1);
+    strcat(mirrorpath, convertpath);
+
+    free(convertpath);
+
+    return mirrorpath;
+} 
+
 /********************/
 /*文字列処理ここまで*/
 /********************/
@@ -266,20 +313,33 @@ int customQuery(sqlite3* dbsession, char* query){
 /**********************/
 /*通信に関するコード群*/
 /**********************/
+//コンストラクタはcreateTask
 typedef struct MirrorTask {
+    MirrorFile* file;
     char* path;
     int block_num;
     int iterator;
     struct stat st;
 } MirrorTask;
 
+void freeMirrorTask(MirrorTask* task){
+    free(task->path);
+    freeMirrorFile(task->file);
+    free(task);
+}
+
 /*タスクの実行*/
 int execTask(Mirror* mirror, MirrorTask* task){
     int rc, block_num, offset, size;
     FileSession* filesession;
     Attribute* attribute;
-    MirrorFile file;
+    MirrorFile* file;
+    FILE* fp; 
+    char* mirrorpath;
+    char buffer[4048];
+
     const char* path = task->path;
+    file = task->file;
 
     Connector* connector = getConnector(NULL);
     if(connector == NULL){
@@ -292,14 +352,35 @@ int execTask(Mirror* mirror, MirrorTask* task){
     }
 
     //ストレージ上のファイル作成とオープン
+    mirrorpath = getMirrorPath(mirror, path);
+    fp = fopen(mirrorpath, "w+");
+    if(fp == NULL){
+        free(mirrorpath);
+        return -1;
+    }
 
     //ブロックごとのダウンロードループ
     for(task->iterator = 0; task->iterator < task->block_num; task->iterator++){
-
+        pthread_mutex_lock(mirror->task_lock);
+        rc = connRead(filesession, (off_t)(task->iterator * BLOCK_SIZE), buffer, 4048);
+        if(rc < 0){
+            break;
+        }
+        fseek(fp, offset, SEEK_SET);
+        rc = fwrite(buffer, 1, rc, fp);
+        pthread_mutex_unlock(mirror->task_lock);
     }
-    //DBへ登録
-    
+    fclose(fp);
 
+    //DBへ登録
+    rc = insertMirrorFileToDB(mirror->dbsession, file);
+    if(rc < 0){
+        free(mirrorpath);
+        return -1;
+    }
+    
+    //メモリ解放
+    free(mirrorpath);
     return 0;
 }
 
@@ -322,6 +403,7 @@ MirrorTask* createTask(char* path){
 
     //MirrorTaskの作成
     task = malloc(sizeof(MirrorTask));
+    task->file = constructMirrorFile(path, attribute->st);
     task->st = attribute->st;
     task->path = strdup(path);
     task->block_num = attribute->st.st_size / BLOCK_SIZE;
@@ -329,13 +411,52 @@ MirrorTask* createTask(char* path){
 
     return task;
 }
-/*タスクの管理*/
 
 /*タスクの追加*/
+int appendTask(Mirror* mirror, char* path){
+    MirrorTask* task;
+
+    task = createTask(path);
+    if(task == NULL){
+        return -1;
+    }
+
+    push_back(mirror->tasklist, task, sizeof(MirrorTask));
+    pthread_mutex_unlock(mirror->task_lock); //ミラータスクの開始
+    return 0;
+}
 
 /*タスクの削除*/
+void deleteTask(Mirror* mirror, char* path){
+    Node* tmpnode, *node, *prenode;
+    MirrorTask* task;
 
-/*タスクの中止*/
+    node = mirror->tasklist->head;
+    prenode = NULL;
+    for(;node != NULL;){
+        tmpnode = node;
+        task = (MirrorTask*)(node->data);
+
+        if(strcmp(task->path, path) == 0){
+            //リストの先頭の時
+            if(prenode != NULL){
+                mirror->tasklist->head = node->next;
+            }else{
+                prenode->next = node->next;
+            }
+            //先にノードを進めておく
+            node = node->next;
+            //nodeの解放
+            freeMirrorTask(task);
+            free(tmpnode);
+        }else{
+            node = node->next;
+            prenode = node;
+        }
+    }
+}
+
+/*総合タスク管理*/
 
 /******************************/
 /*通信に関するコード群ここまで*/
