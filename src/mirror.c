@@ -1,13 +1,23 @@
 #include "list.h"
 #include "map.h"
+#include "conn.h"
+#include "entry.h"
 #include <sqlite3.h>
 #include <string.h>
+#include <pthread.h>
+
+#define BLOCK_SIZE 4048 //4KB
+
+/**********************/
+/*共通のコンストラクタ*/
+/**********************/
 
 typedef struct Mirror {
     int permission;
     int sizesum;
     sqlite3* dbsession;
     void* config;
+    List* tasklist;
 } Mirror;
 
 typedef struct MirrorFile {
@@ -17,6 +27,10 @@ typedef struct MirrorFile {
     int atime;
     int ref_cnt;
 } MirrorFile;
+
+Mirror* constructMirror(){
+    return NULL;
+}
 
 void showMirrorFile(MirrorFile* file){
     if(file != NULL){
@@ -31,6 +45,37 @@ void freeMirrorFile(MirrorFile* file){
         free(file);
     }
 }
+
+/******************************/
+/*共通のコンストラクタここまで*/
+/******************************/
+
+/************/
+/*文字列処理*/
+/************/
+
+/*文字列コピー*/
+char* strdup2(const char* str){
+    int n;
+    char* dest = 0;
+
+    n = strlen(str) + 1;
+    dest = malloc(n + 1);
+    strncpy(dest, str, n);
+
+    return dest;
+}
+
+char* convertMirrorPath(const char* path){
+
+}
+/********************/
+/*文字列処理ここまで*/
+/********************/
+
+/**********************/
+/* DBに関するコード群 */
+/**********************/
 
 /*DBセッションを開始*/
 int initDbSession(const char *filename, sqlite3 **ppDb){
@@ -129,18 +174,6 @@ int insertMirrorFileToDB(sqlite3* dbsession, MirrorFile* file){
     return 0;
 }
 
-/*文字列コピー*/
-char* strdup2(const char* str){
-    int n;
-    char* dest = 0;
-
-    n = strlen(str) + 1;
-    dest = malloc(n + 1);
-    strncpy(dest, str, n);
-
-    return dest;
-}
-
 /*ミラーファイルの検索*/
 MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, char* path){
     int rc;
@@ -226,6 +259,96 @@ int customQuery(sqlite3* dbsession, char* query){
     return 0;
 }
 
+/****************************/
+/*DBに関するコード群ここまで*/
+/****************************/
+
+/**********************/
+/*通信に関するコード群*/
+/**********************/
+typedef struct MirrorTask {
+    char* path;
+    int block_num;
+    int iterator;
+    struct stat st;
+} MirrorTask;
+
+/*タスクの実行*/
+int execTask(Mirror* mirror, MirrorTask* task){
+    int rc, block_num, offset, size;
+    FileSession* filesession;
+    Attribute* attribute;
+    MirrorFile file;
+    const char* path = task->path;
+
+    Connector* connector = getConnector(NULL);
+    if(connector == NULL){
+        return -1;
+    }
+   
+    filesession = connOpen(path, 0);
+    if(filesession == NULL){
+        return -1;
+    }
+
+    //ストレージ上のファイル作成とオープン
+
+    //ブロックごとのダウンロードループ
+    for(task->iterator = 0; task->iterator < task->block_num; task->iterator++){
+
+    }
+    //DBへ登録
+    
+
+    return 0;
+}
+
+/*タスクの作成*/
+MirrorTask* createTask(char* path){
+    MirrorTask* task;
+    Attribute* attribute;
+
+    //コネクタの取得
+    Connector* connector = getConnector(NULL);
+    if(connector == NULL){
+        return NULL;
+    }
+   
+    //Attributeの取得
+    attribute = connStat(path);
+    if(attribute == NULL){
+        return NULL;
+    }
+
+    //MirrorTaskの作成
+    task = malloc(sizeof(MirrorTask));
+    task->st = attribute->st;
+    task->path = strdup(path);
+    task->block_num = attribute->st.st_size / BLOCK_SIZE;
+    task->iterator = 0;
+
+    return task;
+}
+/*タスクの管理*/
+
+/*タスクの追加*/
+
+/*タスクの削除*/
+
+/*タスクの中止*/
+
+/******************************/
+/*通信に関するコード群ここまで*/
+/******************************/
+
+/********************************/
+/*インターフェースに関するコード*/
+/********************************/
+/*****************************************/
+/*インターフェースに関するコードここまで*/
+/****************************************/
+
+/*検証用*/
 int main(){
     Mirror mirror;
     MirrorFile file;
@@ -294,3 +417,4 @@ int main(){
     }
     return 0;
 }
+
