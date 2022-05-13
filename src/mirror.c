@@ -5,6 +5,7 @@
 #include <sqlite3.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 
 #define BLOCK_SIZE 4048 //4KB
 
@@ -30,12 +31,15 @@ typedef struct MirrorFile {
 } MirrorFile;
 
 Mirror* constructMirror(char* root){
+    Mirror* mirror;
+
+    mirror = malloc(sizeof(Mirror));
     return NULL;
 }
 
 void freeMirror();
 
-MirrorFile* constructMirrorFile(char* path, struct stat st){
+MirrorFile* constructMirrorFile(const char* path, struct stat st){
     MirrorFile* file;
     
     file = malloc(sizeof(MirrorFile));
@@ -222,7 +226,7 @@ int insertMirrorFileToDB(sqlite3* dbsession, MirrorFile* file){
 }
 
 /*ミラーファイルの検索*/
-MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, char* path){
+MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, const char* path){
     int rc;
     sqlite3_stmt* stmt;
     MirrorFile* file;
@@ -306,6 +310,14 @@ int customQuery(sqlite3* dbsession, char* query){
     return 0;
 }
 
+/*ミラーファイルの数*/
+int getMirrorFileNum(sqlite3* dbsession){
+    int rc;
+    
+    rc = customQuery(dbsession, "SELECT COUNT(*) FROM Mirrors;");
+    return rc;
+}
+
 /****************************/
 /*DBに関するコード群ここまで*/
 /****************************/
@@ -385,7 +397,7 @@ int execTask(Mirror* mirror, MirrorTask* task){
 }
 
 /*タスクの作成*/
-MirrorTask* createTask(char* path){
+MirrorTask* createTask(const char* path){
     MirrorTask* task;
     Attribute* attribute;
 
@@ -413,7 +425,7 @@ MirrorTask* createTask(char* path){
 }
 
 /*タスクの追加*/
-int appendTask(Mirror* mirror, char* path){
+int appendTask(Mirror* mirror, const char* path){
     MirrorTask* task;
 
     task = createTask(path);
@@ -422,12 +434,11 @@ int appendTask(Mirror* mirror, char* path){
     }
 
     push_back(mirror->tasklist, task, sizeof(MirrorTask));
-    pthread_mutex_unlock(mirror->task_lock); //ミラータスクの開始
     return 0;
 }
 
 /*タスクの削除*/
-void deleteTask(Mirror* mirror, char* path){
+void deleteTask(Mirror* mirror, const char* path){
     Node* tmpnode, *node, *prenode;
     MirrorTask* task;
 
@@ -457,6 +468,22 @@ void deleteTask(Mirror* mirror, char* path){
 }
 
 /*総合タスク管理*/
+/*ミラー通信のロック方針はミラー側はブロック単位でファイルシステム側はオペレーション単位でロックする。*/
+int loopTask(Mirror* mirror){
+    Node* node;
+    MirrorTask* task;
+
+    while(1){
+        if(length(mirror->tasklist) == 0){
+            sleep(3);
+        }else{
+            node = mirror->tasklist->head;
+            for(;node != NULL; node = node->next){
+                execTask(mirror, task);
+            }
+        }
+    }
+}
 
 /******************************/
 /*通信に関するコード群ここまで*/
@@ -465,6 +492,23 @@ void deleteTask(Mirror* mirror, char* path){
 /********************************/
 /*インターフェースに関するコード*/
 /********************************/
+void request_mirror(Mirror* mirror, const char* path){
+    int rc;
+    MirrorTask* task;
+
+    rc = appendTask(mirror, path);
+}
+
+MirrorFile* search_mirror(Mirror* mirror, const char* path){
+    return lookupMirrorFileFromDB(mirror->dbsession, path);
+}
+
+
+void check_mirror(Mirror* mirror, const char* path){
+    int rc;
+    
+    rc = getMirrorFileNum(mirror->dbsession);
+}
 /*****************************************/
 /*インターフェースに関するコードここまで*/
 /****************************************/

@@ -10,6 +10,8 @@
 
 #define CHUNK_SIZE 16384
 
+//flock read write lock
+//sessionをマルチスレッド
 int loadoption(char* path,Authinfo* authinfo)
 {
     char ch;

@@ -33,4 +33,7 @@ mirrorの構成
     - name
     - path
 
+git ssh svn git
+
+
 
