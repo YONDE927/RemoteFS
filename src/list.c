@@ -90,10 +90,13 @@ void freeList(List* list, void (*fptr)(void *))
 void printList(List* list, void (*fptr)(void *))
 {
     Node* pNode = list->head;
+    if(pNode == NULL){
+        printf("empty\n");
+    }
     while(pNode != NULL)
     {
-    fptr(pNode->data);
-    pNode = pNode->next;
+        fptr(pNode->data);
+        pNode = pNode->next;
     }
 }
 

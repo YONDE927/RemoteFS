@@ -19,7 +19,6 @@ typedef struct Mirror {
     pthread_rwlock_t* task_rwlock;
     pthread_mutex_t* list_lock;
     pthread_cond_t* list_cond;
-    int sizesum;
     int killswitch;
     sqlite3* dbsession;
     char* root;
@@ -66,26 +65,29 @@ Mirror* constructMirror(char* dbname, char* root){
         return NULL;
     }
 
-    mirror->sizesum = getMirrorUsedStorage(mirror->dbsession);
-
     mirror->root = strdup(root);
 
     mirror->killswitch = 0;
 
+    mirror->task_rwlock = malloc(sizeof(pthread_rwlock_t));
     rc = pthread_rwlock_init(mirror->task_rwlock, NULL);
     if(rc < 0){
         return NULL;
     }
 
+    mirror->list_lock = malloc(sizeof(pthread_mutex_t));
     rc = pthread_mutex_init(mirror->list_lock, NULL);
     if(rc < 0){
         return NULL;
     }
 
+    mirror->list_cond = malloc(sizeof(pthread_cond_t));
     rc = pthread_cond_init(mirror->list_cond, NULL);
     if(rc < 0){
         return NULL;
     }
+
+    mirror->tasklist = newList();
 
     return mirror;
 }
@@ -171,8 +173,9 @@ char* getMirrorPath(Mirror* mirror, const char* path){
     root_size = strlen(mirror->root);
     path_size = strlen(convertpath);
 
-    mirrorpath = malloc(root_size + path_size);
+    mirrorpath = malloc(root_size + path_size + 1);
     strncpy(mirrorpath, mirror->root, root_size + 1);
+    strcat(mirrorpath, "/");
     strcat(mirrorpath, convertpath);
 
     free(convertpath);
@@ -444,7 +447,7 @@ MirrorTask* createTask(const char* path){
     task->file = constructMirrorFile(path, attribute->st);
     task->st = attribute->st;
     task->path = strdup(path);
-    task->block_num = attribute->st.st_size / BLOCK_SIZE;
+    task->block_num = attribute->st.st_size / BLOCK_SIZE + 1;
     task->iterator = 0;
 
     return task;
@@ -456,6 +459,15 @@ void freeMirrorTask(void* pointer){
     free(task->path);
     freeMirrorFile(task->file);
     free(task);
+}
+
+/*タスクの出力*/
+void printMirrorTask(void* pointer){
+    MirrorTask* task = pointer;
+
+    printf("[task]\n%s\n", task->file->path);
+    printf("%d\n", task->file->size);
+    printf("%d\n", task->block_num);
 }
 
 /*タスクの実行*/
@@ -492,11 +504,16 @@ int execTask(Mirror* mirror, MirrorTask* task){
     //ブロックごとのダウンロードループ
     for(task->iterator = 0; task->iterator < task->block_num; task->iterator++){
         pthread_rwlock_wrlock(mirror->task_rwlock);
-        rc = connRead(filesession, (off_t)(task->iterator * BLOCK_SIZE), buffer, 4048);
+        offset = task->iterator * BLOCK_SIZE;
+        printf("reading from %d bytes\n", offset);
+        rc = connRead(filesession, (off_t)(offset), buffer, 4048);
         if(rc < 0){
             break;
         }
         pthread_rwlock_unlock(mirror->task_rwlock);
+        buffer[4047] = '\0';
+        printf("read %d bytes\n", rc);
+        //printf("%s\n",buffer);
         fseek(fp, offset, SEEK_SET);
         rc = fwrite(buffer, 1, rc, fp);
     }
@@ -540,7 +557,7 @@ void deleteTask(Mirror* mirror, const char* path){
 
         if(strcmp(task->path, path) == 0){
             //リストの先頭の時
-            if(prenode != NULL){
+            if(prenode == NULL){
                 mirror->tasklist->head = node->next;
             }else{
                 prenode->next = node->next;
@@ -724,13 +741,36 @@ int main(int argc, char** argv){
     }
 
     //connection test and task test
+    
+    //createTask
     MirrorTask* task;
-    task = createTask("/home/yonde/Documents/RemoteFS/src/mirror.c");
+    char* path2 = "/home/yonde/Documents/RemoteFS/src/mirror.c";
+    task = createTask(path2);
     if(task == NULL){
         printf("crate task fail.\n");
         exit(EXIT_FAILURE);
     }
-     
+    printf("%s\n", task->file->path);
+    printf("%d\n", task->file->size);
+    printf("%d\n", task->block_num);
+
+    //execTask
+    rc = execTask(mirror, task);
+    if(rc < 0){
+        printf("execTask fail\n");
+        exit(EXIT_FAILURE);
+    }
+
+    //appendTask
+    rc = appendTask(mirror, path2);
+    printList(mirror->tasklist, printMirrorTask);
+    //deleteTask
+    deleteTask(mirror, path2);
+    printList(mirror->tasklist, printMirrorTask);
+    //mirror thread
+    startMirroring(mirror);
+    mirror->killswitch = 1;
+    
     return 0;
 }
 
