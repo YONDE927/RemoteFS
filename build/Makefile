@@ -27,8 +27,8 @@ cache-clean:
 	rm -f obj/cache
 
 #mirror
-mirror: utils
-	${CC} ${CFLAG} ${INC} -o obj/mirror ${SRCD}mirror.c obj/list.o obj/map.o -lsqlite3
+mirror: utils conn
+	${CC} ${CFLAG} ${INC} -o obj/mirror ${SRCD}mirror.c obj/list.o obj/map.o obj/conn.o obj/entry.o -lssh -lsqlite3 -lpthread
 mirror-clean:
 	rm -f obj/cache
 

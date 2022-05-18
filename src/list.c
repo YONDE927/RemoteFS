@@ -58,6 +58,10 @@ void pop_front(List* list, void (*fptr)(void*))
     }
 }
 
+Node* get_front(List* list){
+    return list->head;
+}
+
 void freeNode(Node* pNode, void (*fptr)(void *))
 {
     if(fptr == NULL)

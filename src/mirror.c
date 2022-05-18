@@ -2,24 +2,29 @@
 #include "map.h"
 #include "conn.h"
 #include "entry.h"
+
 #include <sqlite3.h>
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
+#include <sys/types.h>
 
 #define BLOCK_SIZE 4048 //4KB
-
+                        
 /**********************/
 /*共通のコンストラクタ*/
 /**********************/
 
 typedef struct Mirror {
-    pthread_mutex_t* task_lock;
-    pthread_mutex_t* empty_lock;
+    pthread_rwlock_t* task_rwlock;
+    pthread_mutex_t* list_lock;
+    pthread_cond_t* list_cond;
     int sizesum;
+    int killswitch;
     sqlite3* dbsession;
     char* root;
     List* tasklist; //List of MirrorTask
+    pthread_t taskthread;
 } Mirror;
 
 typedef struct MirrorFile {
@@ -30,14 +35,69 @@ typedef struct MirrorFile {
     int ref_cnt;
 } MirrorFile;
 
-Mirror* constructMirror(char* root){
+//コンストラクタはcreateTask
+typedef struct MirrorTask {
+    MirrorFile* file;
+    char* path;
+    int block_num;
+    int iterator;
+    struct stat st;
+} MirrorTask;
+
+int initDbSession(const char *filename, sqlite3 **ppDb);
+int closeDbSession(sqlite3* pDb);
+int createMirrorTable(sqlite3* dbsession);
+int getMirrorUsedStorage(sqlite3* dbsession);
+MirrorTask* createTask(const char* path);
+void freeMirrorTask(void* task);
+
+Mirror* constructMirror(char* dbname, char* root){
+    int rc;
     Mirror* mirror;
 
     mirror = malloc(sizeof(Mirror));
-    return NULL;
+    rc = initDbSession(dbname, &(mirror->dbsession));
+    if(rc < 0){
+        return NULL;
+    }
+
+    rc = createMirrorTable(mirror->dbsession);
+    if(rc < 0){
+        return NULL;
+    }
+
+    mirror->sizesum = getMirrorUsedStorage(mirror->dbsession);
+
+    mirror->root = strdup(root);
+
+    mirror->killswitch = 0;
+
+    rc = pthread_rwlock_init(mirror->task_rwlock, NULL);
+    if(rc < 0){
+        return NULL;
+    }
+
+    rc = pthread_mutex_init(mirror->list_lock, NULL);
+    if(rc < 0){
+        return NULL;
+    }
+
+    rc = pthread_cond_init(mirror->list_cond, NULL);
+    if(rc < 0){
+        return NULL;
+    }
+
+    return mirror;
 }
 
-void freeMirror();
+void freeMirror(Mirror* mirror){
+    free(mirror->root);
+    pthread_rwlock_destroy(mirror->task_rwlock);
+    pthread_mutex_destroy(mirror->list_lock);
+    pthread_cond_destroy(mirror->list_cond);
+    closeDbSession(mirror->dbsession);
+    freeList(mirror->tasklist, freeMirrorTask);
+}
 
 MirrorFile* constructMirrorFile(const char* path, struct stat st){
     MirrorFile* file;
@@ -131,11 +191,23 @@ char* getMirrorPath(Mirror* mirror, const char* path){
 /*DBセッションを開始*/
 int initDbSession(const char *filename, sqlite3 **ppDb){
     int rc;
+
+    //sqlite3のスレッド対応
+    rc = sqlite3_initialize();
+    rc = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+
     rc = sqlite3_open(filename, ppDb);
     if(rc){
         sqlite3_close(*ppDb);
         return -1;
     }
+    return 0;
+}
+
+/*DBセッションを終了*/
+int closeDbSession(sqlite3* pDb){
+    int rc;
+    sqlite3_close(pDb);
     return 0;
 }
 
@@ -245,7 +317,7 @@ MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, const char* path){
     //exectute
     rc = sqlite3_step(stmt);
     if(rc != SQLITE_ROW){
-        printf("insertMirrorFile fail.\n");
+        printf("lookupMirrorFileFromDB fail.\n");
         file = NULL;
     }else{
         file = malloc(sizeof(MirrorFile));
@@ -281,7 +353,7 @@ int deleteMirrorFileFromDB(sqlite3* dbsession, MirrorFile* file){
     //exectute
     rc = sqlite3_step(stmt);
     if(rc != SQLITE_DONE){
-        printf("insertMirrorFile fail.\n");
+        printf("delete MirrorFile fail.\n");
         return -1;
     }
     return 0;
@@ -318,6 +390,30 @@ int getMirrorFileNum(sqlite3* dbsession){
     return rc;
 }
 
+/*ミラーストレージの使用量*/
+int getMirrorUsedStorage(sqlite3* dbsession){
+    int rc;
+    sqlite3_stmt* stmt;
+
+    //sql text
+    rc = sqlite3_prepare_v2(dbsession, 
+            "SELECT SUM(SIZE) FROM Mirrors;",
+            -1, &stmt, 0);
+    if(rc != SQLITE_OK){
+        printf("invalid sql\n");
+        return -1;
+    }
+    //exectute
+    rc = sqlite3_step(stmt);
+    if(rc != SQLITE_ROW){
+        printf("getMirrorUsedStorage fail.\n");
+        return -1;
+    }else{
+        rc = sqlite3_column_int(stmt, 0);
+    }
+    return rc;
+}
+
 /****************************/
 /*DBに関するコード群ここまで*/
 /****************************/
@@ -325,16 +421,38 @@ int getMirrorFileNum(sqlite3* dbsession){
 /**********************/
 /*通信に関するコード群*/
 /**********************/
-//コンストラクタはcreateTask
-typedef struct MirrorTask {
-    MirrorFile* file;
-    char* path;
-    int block_num;
-    int iterator;
-    struct stat st;
-} MirrorTask;
 
-void freeMirrorTask(MirrorTask* task){
+/*タスクの作成*/
+MirrorTask* createTask(const char* path){
+    MirrorTask* task;
+    Attribute* attribute;
+
+    //コネクタの取得
+    Connector* connector = getConnector(NULL);
+    if(connector == NULL){
+        return NULL;
+    }
+   
+    //Attributeの取得
+    attribute = connStat(path);
+    if(attribute == NULL){
+        return NULL;
+    }
+
+    //MirrorTaskの作成
+    task = malloc(sizeof(MirrorTask));
+    task->file = constructMirrorFile(path, attribute->st);
+    task->st = attribute->st;
+    task->path = strdup(path);
+    task->block_num = attribute->st.st_size / BLOCK_SIZE;
+    task->iterator = 0;
+
+    return task;
+}
+
+/*タスクの解放*/
+void freeMirrorTask(void* pointer){
+    MirrorTask* task = pointer;
     free(task->path);
     freeMirrorFile(task->file);
     free(task);
@@ -373,14 +491,14 @@ int execTask(Mirror* mirror, MirrorTask* task){
 
     //ブロックごとのダウンロードループ
     for(task->iterator = 0; task->iterator < task->block_num; task->iterator++){
-        pthread_mutex_lock(mirror->task_lock);
+        pthread_rwlock_wrlock(mirror->task_rwlock);
         rc = connRead(filesession, (off_t)(task->iterator * BLOCK_SIZE), buffer, 4048);
         if(rc < 0){
             break;
         }
+        pthread_rwlock_unlock(mirror->task_rwlock);
         fseek(fp, offset, SEEK_SET);
         rc = fwrite(buffer, 1, rc, fp);
-        pthread_mutex_unlock(mirror->task_lock);
     }
     fclose(fp);
 
@@ -390,38 +508,10 @@ int execTask(Mirror* mirror, MirrorTask* task){
         free(mirrorpath);
         return -1;
     }
-    
+
     //メモリ解放
     free(mirrorpath);
     return 0;
-}
-
-/*タスクの作成*/
-MirrorTask* createTask(const char* path){
-    MirrorTask* task;
-    Attribute* attribute;
-
-    //コネクタの取得
-    Connector* connector = getConnector(NULL);
-    if(connector == NULL){
-        return NULL;
-    }
-   
-    //Attributeの取得
-    attribute = connStat(path);
-    if(attribute == NULL){
-        return NULL;
-    }
-
-    //MirrorTaskの作成
-    task = malloc(sizeof(MirrorTask));
-    task->file = constructMirrorFile(path, attribute->st);
-    task->st = attribute->st;
-    task->path = strdup(path);
-    task->block_num = attribute->st.st_size / BLOCK_SIZE;
-    task->iterator = 0;
-
-    return task;
 }
 
 /*タスクの追加*/
@@ -469,24 +559,60 @@ void deleteTask(Mirror* mirror, const char* path){
 
 /*総合タスク管理*/
 /*ミラー通信のロック方針はミラー側はブロック単位でファイルシステム側はオペレーション単位でロックする。*/
-int loopTask(Mirror* mirror){
+void* loopTask(void* pmirror){
+    int rc;
     Node* node;
     MirrorTask* task;
+    Mirror* mirror;
 
+    mirror = pmirror;
     while(1){
-        if(length(mirror->tasklist) == 0){
-            sleep(3);
-        }else{
-            node = mirror->tasklist->head;
-            for(;node != NULL; node = node->next){
-                execTask(mirror, task);
-            }
+        if(mirror->killswitch == 1){
+            break;
         }
+        node = get_front(mirror->tasklist);
+
+        pthread_mutex_lock(mirror->list_lock);
+
+        while(node == NULL){
+            pthread_cond_wait(mirror->list_cond, mirror->list_lock);
+        }
+        task = node->data;
+        rc = execTask(mirror, task);
+        pop_front(mirror->tasklist, freeMirrorTask);
+
+        pthread_mutex_unlock(mirror->list_lock);
     }
+    return NULL;
+}
+
+/*ミラーリングのスレッドを開始*/
+int startMirroring(Mirror* mirror){
+    int rc;
+
+    mirror->killswitch = 0;
+    rc = pthread_create(&(mirror->taskthread), NULL, loopTask, mirror);
+    if(rc != 0){
+        printf("create thread fail\n");
+        return -1;
+    }
+    return 0;
+}
+/******************************/
+/*通信に関するコード群ここまで*/
+/******************************/
+
+/**********************/
+/*ミラーファイルの管理*/
+/**********************/
+
+/*ミラーファイルの削除*/
+int deleteMirrorFile(const char* path){
+    return 0;
 }
 
 /******************************/
-/*通信に関するコード群ここまで*/
+/*ミラーファイルの管理ここまで*/
 /******************************/
 
 /********************************/
@@ -497,6 +623,7 @@ void request_mirror(Mirror* mirror, const char* path){
     MirrorTask* task;
 
     rc = appendTask(mirror, path);
+    pthread_cond_signal(mirror->list_cond);
 }
 
 MirrorFile* search_mirror(Mirror* mirror, const char* path){
@@ -509,37 +636,52 @@ void check_mirror(Mirror* mirror, const char* path){
     
     rc = getMirrorFileNum(mirror->dbsession);
 }
-/*****************************************/
+
+int openMirrorFile(MirrorFile* file);
+int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
+int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
+int closeMirrorFile(MirrorFile* file);
+
+/****************************************/
 /*インターフェースに関するコードここまで*/
 /****************************************/
 
 /*検証用*/
-int main(){
-    Mirror mirror;
+int main(int argc, char** argv){
+    Mirror* mirror;
     MirrorFile file;
     MirrorFile* pfile;
+    Connector* conn;
     int rc;
+    char* sshconfig;
 
-    //create session
-    rc = initDbSession("sample.db", &(mirror.dbsession));
-    if(rc < 0){
-        return 1;
+    if(argc < 2){
+        printf("mirror [sshconfig]\n");
+        exit(EXIT_FAILURE);
+    }
+    sshconfig = argv[1];
+    conn = getConnector(sshconfig);
+
+    mirror = constructMirror("sample.db", "mirrordata");
+    if(mirror == NULL){
+        printf("constructMirror fail\n");
+        exit(EXIT_FAILURE);
     }
 
     //check status
-    rc = getDbStatus(mirror.dbsession);
+    rc = getDbStatus(mirror->dbsession);
     if(rc < 0){
         return 1;
     }
 
     //create table
-    rc = createMirrorTable(mirror.dbsession);
+    rc = createMirrorTable(mirror->dbsession);
     if(rc < 0){
         return 1;
     }
 
     //show tables
-    rc = customQuery(mirror.dbsession, "SELECT * FROM sqlite_master;");
+    rc = customQuery(mirror->dbsession, "SELECT * FROM sqlite_master;");
     if(rc < 0){
         return 1;
     }
@@ -547,19 +689,19 @@ int main(){
     //insert file
     file.path = "testfile";
     file.size = 1; file.mtime = 2; file.atime = 3; file.ref_cnt = 4;
-    rc = insertMirrorFileToDB(mirror.dbsession, &file);
+    rc = insertMirrorFileToDB(mirror->dbsession, &file);
     if(rc < 0){
         return 1;
     }
 
     //show tables
-    rc = customQuery(mirror.dbsession, "SELECT * FROM Mirrors;");
+    rc = customQuery(mirror->dbsession, "SELECT * FROM Mirrors;");
     if(rc < 0){
         return 1;
     }
 
     //lookup file
-    pfile = lookupMirrorFileFromDB(mirror.dbsession, "testfile");
+    pfile = lookupMirrorFileFromDB(mirror->dbsession, "testfile");
     if(pfile == NULL){
         return 1;
     }else{
@@ -567,19 +709,28 @@ int main(){
     }
 
     //delete file
-    rc = deleteMirrorFileFromDB(mirror.dbsession, pfile);
+    rc = deleteMirrorFileFromDB(mirror->dbsession, pfile);
     if(rc < 0){
         return 1;
     }
     freeMirrorFile(pfile);//free pfile
 
     //lookup file
-    pfile = lookupMirrorFileFromDB(mirror.dbsession, "testfile");
+    pfile = lookupMirrorFileFromDB(mirror->dbsession, "testfile");
     if(pfile != NULL){
         return 1;
     }else{
         printf("no file\n");
     }
+
+    //connection test and task test
+    MirrorTask* task;
+    task = createTask("/home/yonde/Documents/RemoteFS/src/mirror.c");
+    if(task == NULL){
+        printf("crate task fail.\n");
+        exit(EXIT_FAILURE);
+    }
+     
     return 0;
 }
 

@@ -6,6 +6,7 @@ build/test
 build/config
 build/mnt
 build/RemoteFS
+build/mirrordata
 *.swp
 commiter.sh
 
