@@ -95,6 +95,8 @@ Mirror* constructMirror(char* dbname, char* root){
 }
 
 void freeMirror(Mirror* mirror){
+    mirror->killswitch = 1;
+    pthread_join(mirror->taskthread, NULL);
     free(mirror->root);
     pthread_rwlock_destroy(mirror->task_rwlock);
     pthread_mutex_destroy(mirror->list_lock);
@@ -331,6 +333,7 @@ MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, const char* path){
         file->mtime = sqlite3_column_int(stmt, 3);
         file->atime = sqlite3_column_int(stmt, 4);
         file->ref_cnt = sqlite3_column_int(stmt, 5);
+        file->fd = -1;
     }
     return file;
 }
@@ -419,6 +422,11 @@ int getMirrorUsedStorage(sqlite3* dbsession){
     return rc;
 }
 
+/*DBのリセット*/
+void resetMirrorDB(sqlite3* dbsession){
+    customQuery(dbsession, "DELETE FROM mirrors;");
+}
+
 /****************************/
 /*DBに関するコード群ここまで*/
 /****************************/
@@ -477,7 +485,7 @@ int execTask(Mirror* mirror, MirrorTask* task){
     int rc, block_num, offset, size;
     FileSession* filesession;
     Attribute* attribute;
-    MirrorFile* file;
+    MirrorFile* file, *tmp;
     FILE* fp; 
     char* mirrorpath;
     char buffer[4048];
@@ -485,6 +493,12 @@ int execTask(Mirror* mirror, MirrorTask* task){
     const char* path = task->path;
     file = task->file;
 
+    //すでに持っているか
+    tmp = lookupMirrorFileFromDB(mirror->dbsession, task->path);
+    if(tmp != NULL){
+        //持っている
+        return -1;
+    }
     Connector* connector = getConnector(NULL);
     if(connector == NULL){
         return -1;
@@ -586,15 +600,16 @@ void* loopTask(void* pmirror){
 
     mirror = pmirror;
     while(1){
-        if(mirror->killswitch == 1){
-            break;
-        }
         node = get_front(mirror->tasklist);
 
         pthread_mutex_lock(mirror->list_lock);
 
         while(node == NULL){
+            if(mirror->killswitch == 1){
+                return NULL;
+            }
             pthread_cond_wait(mirror->list_cond, mirror->list_lock);
+            node = get_front(mirror->tasklist);
         }
         task = node->data;
         rc = execTask(mirror, task);
@@ -676,9 +691,35 @@ int openMirrorFile(MirrorFile* file){
 /*MirrorFileのファイルディスクリプタに対してreadを発行する*/
 int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
     int rc;
+
+    rc = lseek(file->fd, offset, SEEK_SET);
+    if(rc < 0){
+        printf("readMirrorFile seek fail\n");
+        return -1;
+    }
+    rc = read(file->fd, buf, size);
+    if(rc < 0){
+        printf("readMirrorFile read fail\n");
+        return -1;
+    }
+    return rc;
 }
 /*MirrorFileのファイルディスクリプタに対してwriteを発行する*/
-int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
+int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
+    int rc;
+
+    rc = lseek(file->fd, offset, SEEK_SET);
+    if(rc < 0){
+        printf("readMirrorFile seek fail\n");
+        return -1;
+    }
+    rc = write(file->fd, buf, size);
+    if(rc < 0){
+        printf("readMirrorFile fail\n");
+    }
+    return rc;
+}
+
 /*MirrorFileをクローズする*/
 int closeMirrorFile(MirrorFile* file){
     int rc;
@@ -691,6 +732,7 @@ int closeMirrorFile(MirrorFile* file){
         printf("close mirrorfile fail\n");
         return -1;
     }
+    file->fd = -1;
     return 0;
 }
 
@@ -711,6 +753,7 @@ int main(int argc, char** argv){
         printf("mirror [sshconfig]\n");
         exit(EXIT_FAILURE);
     }
+
     sshconfig = argv[1];
     conn = getConnector(sshconfig);
 
@@ -719,6 +762,9 @@ int main(int argc, char** argv){
         printf("constructMirror fail\n");
         exit(EXIT_FAILURE);
     }
+
+    //reset db
+    resetMirrorDB(mirror->dbsession);
 
     //check status
     rc = getDbStatus(mirror->dbsession);
@@ -804,7 +850,10 @@ int main(int argc, char** argv){
     printList(mirror->tasklist, printMirrorTask);
     //mirror thread
     startMirroring(mirror);
-    mirror->killswitch = 1;
+    request_mirror(mirror, "/home/yonde/Documents/RemoteFS/src/entry.c");
+    request_mirror(mirror, "/home/yonde/Documents/RemoteFS/src/conn.c");
+
+    freeMirror(mirror);
     
     return 0;
 }
