@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <sys/types.h>
+#include <fcntl.h>
 
 #define BLOCK_SIZE 4048 //4KB
                         
@@ -28,6 +29,7 @@ typedef struct Mirror {
 
 typedef struct MirrorFile {
     char* path;
+    int fd;
     int size;
     int mtime;
     int atime;
@@ -654,10 +656,43 @@ void check_mirror(Mirror* mirror, const char* path){
     rc = getMirrorFileNum(mirror->dbsession);
 }
 
-int openMirrorFile(MirrorFile* file);
-int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
+/*MirrorFileをオープンし、ファイルディスクリプタを返す*/
+int openMirrorFile(MirrorFile* file){
+    int fd;
+
+    if(file == NULL){
+        return -1;
+    }
+    fd = open(file->path, O_WRONLY);
+    if(fd < 0){
+        printf("open mirrorfile fail\n");
+        file->fd = -1;
+        return -1;
+    } 
+    file->fd = fd;
+    return 0;
+}
+
+/*MirrorFileのファイルディスクリプタに対してreadを発行する*/
+int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
+    int rc;
+}
+/*MirrorFileのファイルディスクリプタに対してwriteを発行する*/
 int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
-int closeMirrorFile(MirrorFile* file);
+/*MirrorFileをクローズする*/
+int closeMirrorFile(MirrorFile* file){
+    int rc;
+
+    if(file == NULL){
+        return -1;
+    }
+    rc = close(file->fd);
+    if(rc < 0){
+        printf("close mirrorfile fail\n");
+        return -1;
+    }
+    return 0;
+}
 
 /****************************************/
 /*インターフェースに関するコードここまで*/
