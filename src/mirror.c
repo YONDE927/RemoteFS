@@ -2,6 +2,7 @@
 #include "map.h"
 #include "conn.h"
 #include "entry.h"
+#include "mirror.h"
 
 #include <sqlite3.h>
 #include <string.h>
@@ -12,38 +13,6 @@
 
 #define BLOCK_SIZE 4048 //4KB
                         
-/**********************/
-/*共通のコンストラクタ*/
-/**********************/
-
-typedef struct Mirror {
-    pthread_rwlock_t* task_rwlock;
-    pthread_mutex_t* list_lock;
-    pthread_cond_t* list_cond;
-    int killswitch;
-    sqlite3* dbsession;
-    char* root;
-    List* tasklist; //List of MirrorTask
-    pthread_t taskthread;
-} Mirror;
-
-typedef struct MirrorFile {
-    char* path;
-    int fd;
-    int size;
-    int mtime;
-    int atime;
-    int ref_cnt;
-} MirrorFile;
-
-//コンストラクタはcreateTask
-typedef struct MirrorTask {
-    MirrorFile* file;
-    char* path;
-    int block_num;
-    int iterator;
-    struct stat st;
-} MirrorTask;
 
 int initDbSession(const char *filename, sqlite3 **ppDb);
 int closeDbSession(sqlite3* pDb);
@@ -96,6 +65,7 @@ Mirror* constructMirror(char* dbname, char* root){
 
 void freeMirror(Mirror* mirror){
     mirror->killswitch = 1;
+    pthread_cond_signal(mirror->list_cond);
     pthread_join(mirror->taskthread, NULL);
     free(mirror->root);
     pthread_rwlock_destroy(mirror->task_rwlock);
@@ -324,7 +294,7 @@ MirrorFile* lookupMirrorFileFromDB(sqlite3* dbsession, const char* path){
     //exectute
     rc = sqlite3_step(stmt);
     if(rc != SQLITE_ROW){
-        printf("lookupMirrorFileFromDB fail.\n");
+        printf("lookupMirrorFileFromDB %s fail.\n", path);
         file = NULL;
     }else{
         file = malloc(sizeof(MirrorFile));
@@ -640,11 +610,6 @@ int startMirroring(Mirror* mirror){
 /*ミラーファイルの管理*/
 /**********************/
 
-/*ミラーファイルの削除*/
-int deleteMirrorFile(const char* path){
-    return 0;
-}
-
 /******************************/
 /*ミラーファイルの管理ここまで*/
 /******************************/
@@ -678,7 +643,7 @@ int openMirrorFile(MirrorFile* file){
     if(file == NULL){
         return -1;
     }
-    fd = open(file->path, O_WRONLY);
+    fd = open(file->path, O_RDWR);
     if(fd < 0){
         printf("open mirrorfile fail\n");
         file->fd = -1;
@@ -692,6 +657,14 @@ int openMirrorFile(MirrorFile* file){
 int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
     int rc;
 
+    if(file == NULL){
+        printf("MirrorFile* is NULL\n");
+        return -1;
+    }
+    if(file->fd == -1){
+        printf("MirrorFile is not open\n");
+        return -1;
+    }
     rc = lseek(file->fd, offset, SEEK_SET);
     if(rc < 0){
         printf("readMirrorFile seek fail\n");
@@ -708,6 +681,10 @@ int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
 int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
     int rc;
 
+    if(file == NULL){
+        printf("MirrorFile* is NULL\n");
+        return -1;
+    }
     rc = lseek(file->fd, offset, SEEK_SET);
     if(rc < 0){
         printf("readMirrorFile seek fail\n");
@@ -741,7 +718,7 @@ int closeMirrorFile(MirrorFile* file){
 /****************************************/
 
 /*検証用*/
-int main(int argc, char** argv){
+int test_mirror(int argc, char** argv){
     Mirror* mirror;
     MirrorFile file;
     MirrorFile* pfile;
@@ -851,7 +828,42 @@ int main(int argc, char** argv){
     //mirror thread
     startMirroring(mirror);
     request_mirror(mirror, "/home/yonde/Documents/RemoteFS/src/entry.c");
-    request_mirror(mirror, "/home/yonde/Documents/RemoteFS/src/conn.c");
+    request_mirror(mirror, "/home/yonde/Documents/cpro/hello/hello.c");
+    sleep(1);
+
+    //lookup mirrorfile
+    freeMirrorFile(pfile);
+    pfile = lookupMirrorFileFromDB(mirror->dbsession, "/home/yonde/Documents/cpro/hello/hello.c");
+
+    //open mirrorfile
+    rc = openMirrorFile(pfile);
+    if(rc < 0){
+        printf("openMirrorFile fail\n");
+        exit(EXIT_FAILURE);
+    }
+
+    //read mirrorfile
+    char readbuf[1024] = {0};
+    rc = readMirrorFile(pfile, 0, 1024, readbuf);
+    if(rc < 0){
+        printf("readMirrorFile fail\n");
+        exit(EXIT_FAILURE);
+    }
+    printf("[readMirrorFile]\n%s\n", readbuf);
+
+    //writeMirrorFile
+    rc = writeMirrorFile(pfile, 0, 5, "hello");
+    if(rc < 0){
+        printf("readMirrorFile fail\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    //close mirrorfile
+    rc = closeMirrorFile(pfile);
+    if(rc < 0){
+        printf("closeMirrorFile fail\n");
+        exit(EXIT_FAILURE);
+    }
 
     freeMirror(mirror);
     

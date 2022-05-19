@@ -28,7 +28,7 @@ cache-clean:
 
 #mirror
 mirror: utils conn
-	${CC} ${CFLAG} ${INC} -o obj/mirror ${SRCD}mirror.c obj/list.o obj/map.o obj/conn.o obj/entry.o -lssh -lsqlite3 -lpthread
+	${CC} ${CFLAG} ${INC} -o obj/mirror -c ${SRCD}mirror.c
 mirror-clean:
 	rm -f obj/cache
 
@@ -46,13 +46,16 @@ prepare:
 	mkdir -p obj test
 
 #test
-test: test-conn test-utils test-clean
+test: test-conn test-utils test-clean test-mirror
 	echo "Hello connRead test." > /tmp/connRead.txt
 	touch /tmp/connWrite.txt
 test-conn: conn utils
 	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}test-conn.c obj/list.o obj/conn.o obj/attribute.o -lssh -lpthread
 test-utils: utils
 	${CC} ${CFLAG} ${INC} -o test/test-utils ${TESTD}test-utils.c obj/list.o obj/map.o
+test-mirror: mirror
+	${CC} ${CFLAG} ${INC} -o test/test-mirror ${TESTD}test-mirror.c obj/mirror obj/list.o obj/conn.o obj/attribute.o -lssh -lpthread -lsqlite3
+
 test-clean:
 	rm -f /tmp/connRead.txt /tmp/connWrite.txt
 		
