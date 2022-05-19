@@ -79,7 +79,7 @@ int openMirrorFile(MirrorFile* file);
 /*MirrorFileのファイルディスクリプタに対してreadを発行する*/
 int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
 /*MirrorFileのファイルディスクリプタに対してwriteを発行する*/
-int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf);
+int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, const char* buf);
 
 /*MirrorFileをクローズする*/
 int closeMirrorFile(MirrorFile* file);

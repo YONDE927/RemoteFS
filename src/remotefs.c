@@ -3,6 +3,7 @@
 #include "list.h"
 #include "map.h"
 #include "entry.h"
+#include "mirror.h"
 #include <fuse3/fuse.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -14,12 +15,14 @@ typedef struct FileHandler
 {
     off_t offset;
     FileSession* session;
+    MirrorFile* mfile;
 } FileHandler;
 
 typedef struct FsData
 {
     IntMap* FhMap;
     char* RemoteRoot;
+    Mirror* mirror;
 } FsData;
 
 typedef struct Args
@@ -34,60 +37,76 @@ Args* getArgs(char* RemoteRoot, char* SshConfig)
     int len;
     if(args == NULL)
     {
-    args = malloc(sizeof(Args));
-    if(RemoteRoot != NULL)
-    {
-        len = strlen(RemoteRoot);
-        args->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
-        strncpy(args->RemoteRoot, RemoteRoot, len);
-        args->RemoteRoot[len] = '\0';
-    }
-    if(SshConfig != NULL)
-    {
-        len = strlen(SshConfig);
-        args->SshConfig = malloc(sizeof(char) * (len + 1)); 
-        strncpy(args->SshConfig, SshConfig, len);
-        args->SshConfig[len] = '\0';
-    }
+        args = malloc(sizeof(Args));
+        if(RemoteRoot != NULL)
+        {
+            len = strlen(RemoteRoot);
+            args->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
+            strncpy(args->RemoteRoot, RemoteRoot, len);
+            args->RemoteRoot[len] = '\0';
+        }
+        if(SshConfig != NULL)
+        {
+            len = strlen(SshConfig);
+            args->SshConfig = malloc(sizeof(char) * (len + 1)); 
+            strncpy(args->SshConfig, SshConfig, len);
+            args->SshConfig[len] = '\0';
+        }
     }
     return args;
 }
 
 FsData* getFsData()
 {
+    int rc;
+
     static FsData* fs = NULL;
     if(fs == NULL)
     {
-    int len;
-    Args* args;
-    Connector* connecotor;
+        int len;
+        Args* args;
+        Connector* connecotor;
 
-    args = getArgs(NULL,NULL);
-    if(args == NULL)
-    {
-        printf("no args\n");
-        exit(EXIT_FAILURE);
-    }
+        args = getArgs(NULL,NULL);
+        if(args == NULL)
+        {
+            printf("no args\n");
+            exit(EXIT_FAILURE);
+        }
 
-    fs = malloc(sizeof(FsData));
-    fs->FhMap = newIntMap();
-    //SSH接続とSFTPセッションの確立 
-    connecotor = getConnector(args->SshConfig);
-    if(connecotor == NULL)
-    {
-        printf("SSH session is not established\n");
-        exit(EXIT_FAILURE);
-    }
+        fs = malloc(sizeof(FsData));
+        fs->FhMap = newIntMap();
+        //SSH接続とSFTPセッションの確立 
+        connecotor = getConnector(args->SshConfig);
+        if(connecotor == NULL)
+        {
+            printf("SSH session is not established\n");
+            exit(EXIT_FAILURE);
+        }
 
-    //FsDataにリモートサーバーのルートパスを設定
-    len = strlen(args->RemoteRoot);
-    fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
-    strncpy(fs->RemoteRoot, args->RemoteRoot, len);
-    fs->RemoteRoot[len] = '\0';
-    
-    printf("Init %s\n", fs->RemoteRoot);
+        //FsDataにリモートサーバーのルートパスを設定
+        len = strlen(args->RemoteRoot);
+        fs->RemoteRoot = malloc(sizeof(char) * (len + 1)); 
+        strncpy(fs->RemoteRoot, args->RemoteRoot, len);
+        fs->RemoteRoot[len] = '\0';
+
+        //FsDataにMirrorを設定
+        fs->mirror = constructMirror("mirror.db", "/home/yonde/Documents/RemoteFS/build/mirrordata");
+        resetMirrorDB(fs->mirror->dbsession);
+        rc = startMirroring(fs->mirror);
+        if(rc < 0){
+            printf("startMirroring fail\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        printf("Init %s\n", fs->RemoteRoot);
     }
     return fs;
+}
+
+Mirror* getMirror(){
+    FsData* fs = getFsData();
+    return fs->mirror;
 }
 
 
@@ -121,7 +140,7 @@ char* patheditor(const char* path)
 
 int fuseGetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
-    printf("getattr %s\n",path);
+    //printf("getattr %s\n",path);
     Attribute* attr;
     char* RemotePath;
 
@@ -185,7 +204,7 @@ int newhandler(IntMap* map)
 int fuseOpen(const char *path, struct fuse_file_info *fi)
 {
     int map_size;
-    int ind,fh;
+    int rc,ind,fh;
     char* RemotePath;
     IntMap* FhMap;
     FileHandler file = {0};
@@ -195,11 +214,23 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
     FhMap = getFhMap();
     fh = newhandler(FhMap);
 
+    RemotePath = patheditor(path);
 
+    //ミラーファイルを参照
+    file.mfile = search_mirror(getMirror(), RemotePath);
+    if(file.mfile != NULL){
+        rc = openMirrorFile(file.mfile); 
+        if(rc < 0){
+            return -ENOSYS;
+        }
+        /* ファイルハンドラの管理用マップ構造体へ登録 */
+        insIntMap(FhMap, fh, &file, sizeof(FileHandler)); 
+        fi->fh = fh;
+        return 0;
+    }
     
     /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション
      * リモートファイルのオープン */
-    RemotePath = patheditor(path);
     session = connOpen(RemotePath, fi->flags);
     if(session == NULL)
     {
@@ -208,6 +239,9 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
     }
     file.session = session;
     /* リモートを参照ここまで*/
+
+    //ミラーファイルをオーダーする
+    request_mirror(getMirror(), RemotePath);
 
     free(RemotePath);
 
@@ -222,6 +256,7 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     IntMap* FhMap; 
     FileHandler* fh;
     int rc;
+    char* RemotePath;
 
     //ファイルハンドラマップを取得
     FhMap = getFhMap();
@@ -229,21 +264,32 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-    return -EBADFD;
+        return -EBADFD;
     }
-   
-    //オフセットの設定 
-    fh->offset = offset;
+
+    //ミラーファイルが参照できる
+    if(fh->mfile != NULL){
+        rc = readMirrorFile(fh->mfile, offset, size, buffer);
+        if(rc < 0){
+            printf("readMirrorFile fail\n");
+            return -EBADFD;
+        }
+        return rc;
+    }
 
     /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
     rc = connRead(fh->session, offset, buffer, size);
     if(rc < 0)
     {
-    return -ENETDOWN;
+        return -ENETDOWN;
     }
     /* リモートを参照ここまで*/
 
+    //ミラーファイルをオーダーする
+    RemotePath = patheditor(path);
+    request_mirror(getMirror(), RemotePath);
+    free(RemotePath);
     //オフセットの設定 
     fh->offset += rc;
     return rc;
@@ -253,6 +299,7 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
 {
     IntMap* FhMap;
     FileHandler* fh;
+    char* RemotePath;
     int rc;
 
     //ファイルハンドラマップを取得
@@ -261,20 +308,31 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-    return -EBADFD;
+        return -EBADFD;
     }
    
-    //オフセットの設定 
-    fh->offset = offset;
+    //ミラーファイルが参照できる
+    if(fh->mfile != NULL){
+        rc = writeMirrorFile(fh->mfile, offset, size, buffer);
+        if(rc < 0){
+            return -EBADFD;
+        }
+        return rc;
+    }
 
     /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
     rc = connWrite(fh->session, offset, (void*)buffer, size);
     if(rc < 0)
     {
-    return -ENETDOWN;
+        return -ENETDOWN;
     }
     /* リモートを参照ここまで*/
+
+    //ミラーファイルをオーダーする
+    RemotePath = patheditor(path);
+    request_mirror(getMirror(), path);
+    free(RemotePath);
 
     //オフセットの設定 
     fh->offset += rc;
@@ -294,9 +352,20 @@ int fuseRelease(const char *path, struct fuse_file_info *fi)
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-    return -EBADFD;
+        return -EBADFD;
     }
    
+    //ミラーファイルが参照できる
+    if(fh->mfile != NULL){
+        rc = closeMirrorFile(fh->mfile);
+        if(rc < 0){
+            return -EBADFD;
+        }
+        //対象ファイルのFileHandlerをfhMapから削除して解放
+        delIntMap(FhMap, fi->fh);
+        return rc;
+    }
+
     /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
     //通信呼び出し
     rc = connClose(fh->session);
@@ -360,8 +429,10 @@ off_t fuseLseek(const char *path, off_t offset, int whence, struct fuse_file_inf
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
     {
-    return -EBADFD;
+        return -EBADFD;
     }
+
+    /* キャッシュ・ローカルには見つからなくてリモートを参照するセクション*/
    
     fh->offset = offset;
     return fh->offset;
@@ -390,8 +461,8 @@ int main(int argc, char* argv[])
 
     if(argc < 4)
     {
-    printf("RemoteFs [mountpoint] [remoteroot] [ssh.config]\n");
-    exit(EXIT_FAILURE);
+        printf("RemoteFs [mountpoint] [remoteroot] [ssh.config]\n");
+        exit(EXIT_FAILURE);
     }
 
     //Argsの取得
@@ -402,12 +473,12 @@ int main(int argc, char* argv[])
 
     for (i=0, new_argc=0; (i<argc) && (new_argc<10); i++)
     {
-    if((i != 2) & (i != 3))
-    {
-        printf("%s\n",argv[i]);
-        new_argv[new_argc++] = argv[i];
+        if((i != 2) & (i != 3))
+        {
+            printf("%s\n",argv[i]);
+            new_argv[new_argc++] = argv[i];
+        }
     }
-    }
-
+    
     return fuse_main(new_argc, new_argv, &fuseOper, NULL);
 }

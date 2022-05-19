@@ -10,6 +10,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #define BLOCK_SIZE 4048 //4KB
                         
@@ -149,7 +150,7 @@ char* getMirrorPath(Mirror* mirror, const char* path){
 
     mirrorpath = malloc(root_size + path_size + 1);
     strncpy(mirrorpath, mirror->root, root_size + 1);
-    strcat(mirrorpath, "/");
+    //strcat(mirrorpath, "/");
     strcat(mirrorpath, convertpath);
 
     free(convertpath);
@@ -452,7 +453,7 @@ void printMirrorTask(void* pointer){
 
 /*タスクの実行*/
 int execTask(Mirror* mirror, MirrorTask* task){
-    int rc, block_num, offset, size;
+    int rc, block_num, offset, size, errno;
     FileSession* filesession;
     Attribute* attribute;
     MirrorFile* file, *tmp;
@@ -463,26 +464,34 @@ int execTask(Mirror* mirror, MirrorTask* task){
     const char* path = task->path;
     file = task->file;
 
+    printf("execTask %s\n", path);
+
     //すでに持っているか
     tmp = lookupMirrorFileFromDB(mirror->dbsession, task->path);
     if(tmp != NULL){
         //持っている
+        printf("execTask have %s \n", path);
         return -1;
     }
+
     Connector* connector = getConnector(NULL);
     if(connector == NULL){
+        printf("execTask getConnector %s fail\n", path);
         return -1;
     }
    
     filesession = connOpen(path, 0);
     if(filesession == NULL){
+        printf("execTask connOpen %s fail\n", path);
         return -1;
     }
+    printf("execTask filesession create %s\n", path);
 
     //ストレージ上のファイル作成とオープン
     mirrorpath = getMirrorPath(mirror, path);
     fp = fopen(mirrorpath, "w+");
     if(fp == NULL){
+        printf("execTask fopen %s error %d fail\n", mirrorpath, errno);
         free(mirrorpath);
         return -1;
     }
@@ -619,8 +628,8 @@ int startMirroring(Mirror* mirror){
 /********************************/
 void request_mirror(Mirror* mirror, const char* path){
     int rc;
-    MirrorTask* task;
 
+    printf("request_mirror %s\n", path);
     rc = appendTask(mirror, path);
     pthread_cond_signal(mirror->list_cond);
 }
@@ -678,7 +687,7 @@ int readMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
     return rc;
 }
 /*MirrorFileのファイルディスクリプタに対してwriteを発行する*/
-int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, char* buf){
+int writeMirrorFile(MirrorFile* file, off_t offset, size_t size, const char* buf){
     int rc;
 
     if(file == NULL){

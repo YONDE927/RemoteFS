@@ -177,7 +177,7 @@ List* connReaddir(const char* path)
 /* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
 Attribute* connStat(const char* path)
 {
-    printf("connStat %s\n",path);
+    //printf("connStat %s\n",path);
     Attribute* attr = NULL;
     sftp_attributes sfstat;
     Connector* connector = getConnector(NULL);

@@ -5,8 +5,8 @@ SRCD = ../src/
 TESTD = ../test/
 
 #remotefs
-all: conn utils test
-	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o -lssh -lfuse3 -lpthread
+all: conn utils test mirror
+	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o obj/mirror.o -lssh -lfuse3 -lpthread -lsqlite3
 
 #attribute
 attribute: list
@@ -28,7 +28,7 @@ cache-clean:
 
 #mirror
 mirror: utils conn
-	${CC} ${CFLAG} ${INC} -o obj/mirror -c ${SRCD}mirror.c
+	${CC} ${CFLAG} ${INC} -o obj/mirror.o -c ${SRCD}mirror.c
 mirror-clean:
 	rm -f obj/cache
 
@@ -54,7 +54,7 @@ test-conn: conn utils
 test-utils: utils
 	${CC} ${CFLAG} ${INC} -o test/test-utils ${TESTD}test-utils.c obj/list.o obj/map.o
 test-mirror: mirror
-	${CC} ${CFLAG} ${INC} -o test/test-mirror ${TESTD}test-mirror.c obj/mirror obj/list.o obj/conn.o obj/attribute.o -lssh -lpthread -lsqlite3
+	${CC} ${CFLAG} ${INC} -o test/test-mirror ${TESTD}test-mirror.c obj/mirror.o obj/list.o obj/conn.o obj/attribute.o -lssh -lpthread -lsqlite3
 
 test-clean:
 	rm -f /tmp/connRead.txt /tmp/connWrite.txt
