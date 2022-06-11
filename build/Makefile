@@ -5,8 +5,8 @@ SRCD = ../src/
 TESTD = ../test/
 
 #remotefs
-all: conn utils test mirror
-	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o obj/mirror.o -lssh -lfuse3 -lpthread -lsqlite3
+all: conn utils test mirror record
+	${CC} ${CFLAG} ${INC} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o obj/mirror.o obj/record.o -lssh -lfuse3 -lpthread -lsqlite3
 
 #attribute
 attribute: list
@@ -20,6 +20,10 @@ conn: list attribute
 conn-clean:
 	rm -f obj/conn.o
 
+#rawtp
+rawtp: 
+	make -C ../src/rawtp all
+
 #cache
 cache: utils
 	${CC} ${CFLAG} ${INC} -o obj/cache ${SRCD}cache.c obj/list.o obj/map.o
@@ -31,6 +35,12 @@ mirror: utils conn
 	${CC} ${CFLAG} ${INC} -o obj/mirror.o -c ${SRCD}mirror.c
 mirror-clean:
 	rm -f obj/cache
+
+#record
+record: utils conn
+	${CC} ${CFLAG} ${INC} -o obj/record.o -c ${SRCD}record.c
+record-clean:
+	rm -f obj/record.o
 
 #utils
 utils: list map

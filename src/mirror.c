@@ -150,7 +150,7 @@ char* getMirrorPath(Mirror* mirror, const char* path){
 
     mirrorpath = malloc(root_size + path_size + 1);
     strncpy(mirrorpath, mirror->root, root_size + 1);
-    //strcat(mirrorpath, "/");
+    strcat(mirrorpath, "/");
     strcat(mirrorpath, convertpath);
 
     free(convertpath);

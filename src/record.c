@@ -1,9 +1,35 @@
 #include <stdio.h>
-#include <sqlite3.h>
+#include <stdlib.h>
 #include <time.h>
+#include "record.h"
+
+Record* newRecord(){
+    int rc;
+    Record* record;
+
+    record = malloc(sizeof(Record));
+    
+    rc = initRecordSession("record.db", &record->session);
+    if(rc < 0){
+        return NULL;
+    }
+
+    createRecordTable(record);
+
+    resetRecord(record->session);
+
+    return record;
+}
+
+void freeRecord(Record* record){
+    int rc;
+
+    rc = closeRecordSession(record);
+    free(record);
+}
 
 //DB接続初期化
-int initDbSession(const char *filename, sqlite3 **ppDb){
+int initRecordSession(const char *filename, sqlite3 **ppDb){
     int rc;
 
     //sqlite3のスレッド対応
@@ -18,25 +44,36 @@ int initDbSession(const char *filename, sqlite3 **ppDb){
     return 0;
 }
 
-/*DB接続を終了*/
-int closeDbSession(sqlite3* pDb){
+/*DBのリセット*/
+void resetRecord(sqlite3* dbsession){
     int rc;
-    sqlite3_close(pDb);
+    char* errmsg = 0;
+
+    rc = sqlite3_exec(dbsession, "DELETE FROM Record;", NULL, 0, &errmsg);
+    if(rc != SQLITE_OK){
+        printf("customQuery failed.\n");
+    }
+}
+
+/*DB接続を終了*/
+int closeRecordSession(Record* record){
+    int rc;
+    sqlite3_close(record->session);
     return 0;
 }
 
 /*DBテーブルを作成*/
-int createRecordTable(sqlite3* dbsession){
+int createRecordTable(Record* record){
     int rc;
     sqlite3_stmt *stmt;
 
-    if(dbsession == NULL){
-        printf("createMirrorTable failed\n");
+    if(record->session == NULL){
+        printf("createRecordTable failed\n");
         return -1;
     }
     
     //sql text
-    rc = sqlite3_prepare_v2(dbsession, 
+    rc = sqlite3_prepare_v2(record->session, 
             "CREATE TABLE IF NOT EXISTS Record"
             "(path TEXT, operation TEXT, time INTEGER);",
             -1, &stmt, 0);
@@ -57,19 +94,10 @@ int createRecordTable(sqlite3* dbsession){
     return 0;
 }
 
-typedef enum op_t {
-    OPEN,
-    CLOSE,
-    READ,
-    WRITE,
-    GETATTR,
-    READDIR
-} op_t;
-
 char* opname[] = {"OPEN","CLOSE","READ","WRITE","GETATTR","READDIR"};
 
 //基本形
-int recordOperation(sqlite3* dbsession, char* path, op_t op){
+int recordOperation(Record* record, const char* path, op_t op){
     int rc;
     sqlite3_stmt* stmt;
     time_t now;
@@ -77,9 +105,9 @@ int recordOperation(sqlite3* dbsession, char* path, op_t op){
     //time
     now = time(NULL);
     //sql text
-    rc = sqlite3_prepare_v2(dbsession, 
-            "REPLACE INTO Mirrors VALUES "
-            "( ?, ?, ?, ?, ?);",
+    rc = sqlite3_prepare_v2(record->session, 
+            "REPLACE INTO Record VALUES "
+            "( ?, ?, ?);",
             -1, &stmt, 0);
     if(rc != SQLITE_OK){
         printf("invalid sql\n");

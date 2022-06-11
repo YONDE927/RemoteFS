@@ -4,6 +4,7 @@
 #include "map.h"
 #include "entry.h"
 #include "mirror.h"
+#include "record.h"
 #include <fuse3/fuse.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -23,6 +24,7 @@ typedef struct FsData
     IntMap* FhMap;
     char* RemoteRoot;
     Mirror* mirror;
+    Record* record;
 } FsData;
 
 typedef struct Args
@@ -98,6 +100,9 @@ FsData* getFsData()
             printf("startMirroring fail\n");
             exit(EXIT_FAILURE);
         }
+
+        //Recordの設定
+        fs->record = newRecord(); 
         
         printf("Init %s\n", fs->RemoteRoot);
     }
@@ -207,11 +212,13 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
     int rc,ind,fh;
     char* RemotePath;
     IntMap* FhMap;
+    FsData* fs;
     FileHandler file = {0};
     FileSession* session;
 
     //ファイルハンドラマップを取得
-    FhMap = getFhMap();
+    fs = getFsData();
+    FhMap = fs->FhMap;
     fh = newhandler(FhMap);
 
     RemotePath = patheditor(path);
@@ -248,18 +255,24 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
     /* ファイルハンドラの管理用マップ構造体へ登録 */
     insIntMap(FhMap, fh, &file, sizeof(FileHandler)); 
     fi->fh = fh;
+
+    //レコード
+    recordOperation(fs->record, path, OPEN);
+
     return 0;  
 }
 
 int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    FsData* fs;
     IntMap* FhMap; 
     FileHandler* fh;
     int rc;
     char* RemotePath;
 
     //ファイルハンドラマップを取得
-    FhMap = getFhMap();
+    fs = getFsData();
+    FhMap = fs->FhMap;
 
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
@@ -292,18 +305,24 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     free(RemotePath);
     //オフセットの設定 
     fh->offset += rc;
+
+    //レコード
+    recordOperation(fs->record, path, READ);
+
     return rc;
 }
 
 int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    FsData* fs;
     IntMap* FhMap;
     FileHandler* fh;
     char* RemotePath;
     int rc;
 
     //ファイルハンドラマップを取得
-    FhMap = getFhMap();
+    fs = getFsData();
+    FhMap = fs->FhMap;
 
     fh = getIntMap(FhMap, fi->fh);
     if(fh == NULL)
@@ -337,16 +356,21 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
     //オフセットの設定 
     fh->offset += rc;
 
+    //レコード
+    recordOperation(fs->record, path, WRITE);
+
     return rc;    
 }
 
 int fuseRelease(const char *path, struct fuse_file_info *fi)
 {
+    FsData* fs;
     IntMap* FhMap;
     FileHandler* fh;
     int rc;
 
     //ファイルハンドラマップを取得
+    fs = getFsData();
     FhMap = getFhMap();
 
     fh = getIntMap(FhMap, fi->fh);
@@ -378,6 +402,9 @@ int fuseRelease(const char *path, struct fuse_file_info *fi)
     //対象ファイルのFileHandlerをfhMapから削除して解放
     delIntMap(FhMap, fi->fh);
 
+    //レコード
+    recordOperation(fs->record, path, CLOSE);
+   
     return 0;    
 }
 
@@ -399,6 +426,9 @@ int fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         filler(buf, attr->path, &(attr->st), 0, FUSE_FILL_DIR_PLUS);
     }
     freeList(attrs, freeAttr);
+
+    //レコード
+    //recordOperation(fs->record, path, OPEN);
 
     return 0;    
 }
