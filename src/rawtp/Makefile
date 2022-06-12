@@ -1,5 +1,5 @@
 CC = gcc
-CFLAG = -ggdb
+CFLAG = -ggdb -I../../include
 OBJD = ../../build/obj/
 
 all: fileoperation transfer connection byteorder list
@@ -26,4 +26,4 @@ misc:
 	echo "hello world.\nThis file is a sample for attempte of struct data transportion" > sample.txt
 
 list:
-	${CC} ${CFLAG} -o ${OBJD}listrawtp.o -c list.c 
+	${CC} ${CFLAG} -o ${OBJD}listrawtp.o -c ../list.c 

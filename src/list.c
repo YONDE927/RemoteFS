@@ -12,11 +12,9 @@ void push_front(List* list, void* Data, int SizeofData)
 {   
     //新しいNodeを予約
     Node* newNode = (Node*)malloc(sizeof(Node));
-    newNode->data = malloc(SizeofData);
+    newNode->data = Data; 
     //新しいheadに今までの先頭を登録
     newNode->next = list->head;
-    //第２引数からDataをコピー
-    memcpy(newNode->data, Data, SizeofData);
     //リストの先頭にnewNodeを登録
     list->head = newNode;  
 }
@@ -25,24 +23,22 @@ void push_back(List* list, void* Data, int SizeofData)
 {
     //新しいNodeを予約
     Node* newNode = (Node*)malloc(sizeof(Node));
-    newNode->data = malloc(SizeofData);
+    newNode->data = Data; 
     newNode->next = NULL;
-    //第２引数からDataをコピー
-    memcpy(newNode->data, Data, SizeofData);
     //リストが空の場合は先頭に新ノードを登録する。空でなければ最後のノードまで移動する。
     if(list->head == NULL)
     {
-    list->head = newNode;
+        list->head = newNode;
     }
     else
     {
-    Node* pNode = list->head;
-    while(pNode->next != NULL)
-    {
-        pNode = pNode->next;
-    }
-    //最後のノードのnextにnewNodeを代入
-    pNode->next = newNode;
+        Node* pNode = list->head;
+        while(pNode->next != NULL)
+        {
+            pNode = pNode->next;
+        }
+        //最後のノードのnextにnewNodeを代入
+        pNode->next = newNode;
     }
 }
 
