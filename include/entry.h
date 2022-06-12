@@ -5,10 +5,12 @@
 
 typedef struct Attribute
 {
+    char path[256];
     struct stat st;
-    char* path;
 } Attribute;
 
 Attribute* newAttr(int pathlen);
 void freeAttr(void* attr);
+
+void printdirstat(void* _dstat);
 

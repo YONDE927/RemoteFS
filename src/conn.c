@@ -116,7 +116,6 @@ Connector* getConnector(char* configpath)
 
 int connInit(Connector* connector,Authinfo* authinfo)
 {
-    //init mutex
     connector->m_ssh = ssh_new();
     ssh_options_set(connector->m_ssh, SSH_OPTIONS_HOST, authinfo->host);
     if(ssh_connect(connector->m_ssh)!=SSH_OK){
@@ -165,7 +164,6 @@ List* connReaddir(const char* path)
     {
         pathlen = strlen(sfstat->name) + 1;
         attr = malloc(sizeof(Attribute));
-        attr->path = malloc(sizeof(char) * pathlen);
         strncpy(attr->path, sfstat->name, pathlen);
         attr->st.st_size = sfstat->size;
         attr->st.st_atime = sfstat->atime;
@@ -361,9 +359,10 @@ int connClose(FileSession* file)
 #ifdef RAW
 //flock read write lock
 //sessionをマルチスレッド
-int loadoption(char* path,Authinfo* authinfo)
+int loadoption(char* path, Authinfo* authinfo)
 {
     char ch;
+    char port[6];
     FILE* file;
     int count = 0;
     file = fopen(path, "r");
@@ -384,21 +383,14 @@ int loadoption(char* path,Authinfo* authinfo)
     count = 0;
     while((ch != EOF) && (ch != '\n'))
     {
-        authinfo->username[count] = ch;    
+        port[count] = ch;    
         ch = getc(file);
         count ++;
     }
-    authinfo->username[count] = '\0';
+    port[count] = '\0';
 
-    ch = getc(file);
-    count = 0;
-    while((ch != EOF) && (ch != '\n'))
-    {
-        authinfo->password[count] = ch;    
-        ch = getc(file);
-        count ++;
-    }
-    authinfo->password[count] = '\0';
+    authinfo->port = atoi(port);
+
     return 0;
 }
 
@@ -437,7 +429,7 @@ Connector* getConnector(char* configpath)
         }
         pthread_mutex_unlock(&(connector->mutex));
     }
-    if(ssh_is_connected(connector->m_ssh))
+    if(resquestHealth(connector->sockfd))
     {
         return connector;
     }
@@ -462,23 +454,11 @@ Connector* getConnector(char* configpath)
 
 int connInit(Connector* connector,Authinfo* authinfo)
 {
-    //init mutex
-    connector->m_ssh = ssh_new();
-    ssh_options_set(connector->m_ssh, SSH_OPTIONS_HOST, authinfo->host);
-    if(ssh_connect(connector->m_ssh)!=SSH_OK){
-        ssh_free(connector->m_ssh);
-    return -1;
+    connector->sockfd = getClientSock(authinfo->host, authinfo->port);
+    if(connector->sockfd < 0){
+        return -1;
     }
-    if(ssh_userauth_password(connector->m_ssh,authinfo->username,authinfo->password)!=SSH_AUTH_SUCCESS){
-    ssh_free(connector->m_ssh);
-    return -1;
-    }
-    connector->m_sftp = sftp_new(connector->m_ssh);
-    if(sftp_init(connector->m_sftp)!=SSH_OK){
-    sftp_free(connector->m_sftp);
-        ssh_free(connector->m_ssh);
-    return -1;
-    }
+
     return 0;
 }
 
@@ -486,40 +466,18 @@ int connInit(Connector* connector,Authinfo* authinfo)
 List* connReaddir(const char* path)
 {
     Connector* connector = getConnector(NULL);
-    List* list = newList();
+    List* stats;
     Attribute* attr;
-    sftp_attributes sfstat;
-    sftp_dir dir;
     int pathlen;
 
     //open direcotry
     if(connector==NULL)
     {
         printf("Connector is down.\n");
-        return list;
+        return stats;
     }
     pthread_mutex_lock(&(connector->mutex));
-    dir = sftp_opendir(connector->m_sftp, path);
-    if(dir==NULL)
-    {
-        printf("error open dir.\n");
-        pthread_mutex_unlock(&(connector->mutex));
-        return list;
-    }
-    sfstat = sftp_readdir(connector->m_sftp, dir);
-    while(sfstat!=NULL)
-    {
-        pathlen = strlen(sfstat->name) + 1;
-        attr = malloc(sizeof(Attribute));
-        attr->path = malloc(sizeof(char) * pathlen);
-        strncpy(attr->path, sfstat->name, pathlen);
-        attr->st.st_size = sfstat->size;
-        attr->st.st_atime = sfstat->atime;
-        attr->st.st_mtime = sfstat->mtime;
-        attr->st.st_nlink = 1;
-        push_front(list, &attr, sizeof(Attribute));
-        sfstat = sftp_readdir(connector->m_sftp, dir);
-    }
+    stats = requestReaddir(connector->sockfd, path); 
     pthread_mutex_unlock(&(connector->mutex));
     return list;
 }

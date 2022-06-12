@@ -21,7 +21,7 @@ struct PayloadHeader {
 
 struct Payload {
     struct PayloadHeader header;
-    char* data;
+    const char* data;
 };
 
 struct PayloadHeader alignPayloadHeader(struct PayloadHeader header);

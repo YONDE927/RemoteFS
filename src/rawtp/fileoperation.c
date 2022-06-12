@@ -8,9 +8,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define PATH_MAZ 256
 
-int requestOpen(int fd, char* path, int mode){
+int requestOpen(int fd, const char* path, int mode){
     int fi, rc;
     struct Payload payload = {0};
     struct Payload* ppayload;
@@ -362,7 +361,7 @@ void swapStat(struct stat* stbuf){
     }
 }
 
-int requestStat(int sockfd, char* path, struct stat* stbuf){
+int requestStat(int sockfd, const char* path, struct stat* stbuf){
     struct Payload payload = {0};
     struct Payload* ppayload;
 
@@ -423,14 +422,14 @@ void printdirstat(void* _dstat){
     if(_dstat == NULL){
         return;
     }
-    struct dirstat* dstat = _dstat;
+    struct Attribute* dstat = _dstat;
     printf("%s %ld %ld %ld \n", dstat->path, dstat->st.st_size, dstat->st.st_mtime, dstat->st.st_ctime);
 }
 
-List* requestReaddir(int sockfd, char* path){
+List* requestReaddir(int sockfd, const char* path){
     int rc;
     List* stats;
-    struct dirstat* attr;
+    struct Attribute* attr;
     struct Payload payload = {0};
     struct Payload* ppayload;
     
@@ -463,11 +462,11 @@ List* requestReaddir(int sockfd, char* path){
         }
 
         //statを取り出す
-        attr = malloc(sizeof(struct dirstat));
-        *attr = *(struct dirstat*)ppayload->data;
+        attr = malloc(sizeof(struct Attribute));
+        *attr = *(struct Attribute*)ppayload->data;
         swapStat(&attr->st);
 
-        push_front(stats, attr, sizeof(struct dirstat));
+        push_front(stats, attr, sizeof(struct Attribute));
         freePayload(ppayload);
     }
     
@@ -479,7 +478,7 @@ int responseReaddir(int sockfd, struct Payload request){
     DIR* dir;
     struct dirent* entry;
     struct Payload response = {0};
-    struct dirstat dstat = {0};
+    struct Attribute dstat = {0};
 
     puts("responseReaddir");
 
@@ -495,10 +494,10 @@ int responseReaddir(int sockfd, struct Payload request){
     while((entry = readdir(dir)) != NULL){
         //responseの生成
         response.header.type = YES;
-        response.header.size = sizeof(struct dirstat);
+        response.header.size = sizeof(struct Attribute);
         response.header.slot1 = 0;
 
-        bzero(&dstat, sizeof(struct dirstat));
+        bzero(&dstat, sizeof(struct Attribute));
         strcpy(dstat.path, entry->d_name);
         stat(entry->d_name, &dstat.st);
         swapStat(&dstat.st);
@@ -522,4 +521,45 @@ int responseReaddir(int sockfd, struct Payload request){
     closedir(dir);
 
     return 0;
+}
+
+int resquestHealth(int sockfd){
+    int fi, rc;
+    struct Payload payload = {0};
+    struct Payload* ppayload;
+
+    payload.header.type = HEALTH;
+    payload.header.size = 0;
+  
+    //リクエストを送信
+    if((rc = sendPayload(sockfd, payload)) < 0){
+        return -1;
+    }
+    //レスポンスの受信
+    if((ppayload = recvPayload(sockfd)) == NULL){
+        return -1;
+    }
+    if(ppayload->header.type != YES){
+        return -1;
+    }
+    freePayload(ppayload);
+    return 0;
+}
+
+int responseHealth(int sockfd, struct Payload request){
+    struct Payload response = {0};
+
+    puts("responseOpen");
+
+    //responseの生成
+    response.header.type = YES;
+    response.header.size = 0;
+
+    //responseの送信
+    if(sendPayload(sockfd, response) < 0){
+        return -1;
+    }
+
+    return 0;
+
 }
