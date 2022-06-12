@@ -1,5 +1,5 @@
 CC = gcc
-CFLAG = -ggdb -I../../include
+CFLAG = -ggdb -I../../include/rawtp -I../../include
 OBJD = ../../build/obj/
 
 all: fileoperation transfer connection byteorder list
@@ -14,7 +14,7 @@ fileoperation: fileoperation.c
 	${CC} ${CFLAG} -o ${OBJD}fileoperation.o -c fileoperation.c
 
 test: test.c fileoperation transfer connection byteorder misc list
-	${CC} ${CFLAG} -o test test.c fileoperation.o transfer.o byteorder.o connection.o list.o
+	${CC} ${CFLAG} -o test test.c fileoperation.o transfer.o byteorder.o connection.o listrawtp.o
 
 byteorder:
 	${CC} ${CFLAG} -o ${OBJD}byteorder.o -c byteorder.c

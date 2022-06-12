@@ -257,7 +257,7 @@ int fuseOpen(const char *path, struct fuse_file_info *fi)
     fi->fh = fh;
 
     //レコード
-    recordOperation(fs->record, path, OPEN);
+    recordOperation(fs->record, path, oOPEN);
 
     return 0;  
 }
@@ -357,7 +357,7 @@ int fuseWrite(const char *path, const char *buffer, size_t size, off_t offset, s
     fh->offset += rc;
 
     //レコード
-    recordOperation(fs->record, path, WRITE);
+    recordOperation(fs->record, path, oWRITE);
 
     return rc;    
 }
@@ -403,7 +403,7 @@ int fuseRelease(const char *path, struct fuse_file_info *fi)
     delIntMap(FhMap, fi->fh);
 
     //レコード
-    recordOperation(fs->record, path, CLOSE);
+    recordOperation(fs->record, path, oCLOSE);
    
     return 0;    
 }

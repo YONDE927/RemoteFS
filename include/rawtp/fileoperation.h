@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 
 #define PATH_MAZ 256
-#define CHUNK_SIZE 4048
+#define DGRAM_SIZE 4048
 
 typedef enum {
     NONE,

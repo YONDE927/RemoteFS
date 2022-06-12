@@ -9,7 +9,6 @@
 #include <fcntl.h>
 
 #define PATH_MAZ 256
-#define CHUNK_SIZE 4048
 
 int requestOpen(int fd, char* path, int mode){
     int fi, rc;
@@ -166,7 +165,7 @@ int responseRead(int fd, struct Payload request){
     int rc, filesize, size, sendsize, sizesum = 0, flag = 0;
     struct stat stbuf;
     struct Payload response = {0};
-    char buf[CHUNK_SIZE] = {0};
+    char buf[DGRAM_SIZE] = {0};
 
     puts("responseRead");
 
@@ -195,8 +194,8 @@ int responseRead(int fd, struct Payload request){
 
     while(1){
         //送るサイズの計算
-        if(size > CHUNK_SIZE){
-            sendsize = CHUNK_SIZE;
+        if(size > DGRAM_SIZE){
+            sendsize = DGRAM_SIZE;
         }else if(size > 0){
             sendsize = size;
             flag = -1;
@@ -205,7 +204,7 @@ int responseRead(int fd, struct Payload request){
             break;
         }
 
-        bzero(buf, CHUNK_SIZE);
+        bzero(buf, DGRAM_SIZE);
         if((rc = read(request.header.slot1, buf, sendsize)) < 0){
             response.header.type = NO;
             if(sendPayload(fd, response) < 0){
@@ -262,8 +261,8 @@ int requestWrite(int sockfd, int fd, char* buf, int offset, int size){
     //レスポンスの受信とファイルデータの転送
     while(1){
         //送るサイズの計算
-        if(size > CHUNK_SIZE){
-            sendsize = CHUNK_SIZE;
+        if(size > DGRAM_SIZE){
+            sendsize = DGRAM_SIZE;
         }else if(size > 0){
             sendsize = size;
             flag = -1;

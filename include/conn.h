@@ -48,22 +48,20 @@ int connStatus();
 #ifdef RAW 
 typedef struct Connector
 {
-    ssh_session m_ssh;
-    sftp_session m_sftp;
+    int sockfd;
     pthread_mutex_t mutex;
 } Connector;
 
 typedef struct Authinfo
 {
     char host[64];
-    char username[64];
-    char password[64];
+    short port;
 } Authinfo;
 
 typedef struct FileSession
 {
     char* path;
-    sftp_file fh;
+    int fh;
 } FileSession;
 
 Connector* getConnector(char* configpath);

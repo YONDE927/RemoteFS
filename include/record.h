@@ -20,12 +20,12 @@ int closeRecordSession(Record* record);
 int createRecordTable(Record* record);
 
 typedef enum op_t {
-    OPEN,
-    CLOSE,
-    READ,
-    WRITE,
-    GETATTR,
-    READDIR
+    oOPEN,
+    oCLOSE,
+    oREAD,
+    oWRITE,
+    oGETATTR,
+    oREADDIR
 } op_t;
 
 //基本形
