@@ -9,5 +9,5 @@ typedef struct Attribute
     struct stat st;
 } Attribute;
 
-void printdirstat(void* _dstat);
+void printAttr(void* _dstat);
 

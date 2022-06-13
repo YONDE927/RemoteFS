@@ -164,7 +164,7 @@ int requestRead(int sockfd, int fd, char* buf, int offset, int size){
 }
 
 int responseRead(int fd, struct Payload request){
-    int rc, filesize, size, sendsize, sizesum = 0, flag = 0;
+    int rc, filesize, size, readsize, sizesum = 0, flag = 0;
     struct stat stbuf;
     struct Payload response = {0};
     char buf[DGRAM_SIZE] = {0};
@@ -197,9 +197,9 @@ int responseRead(int fd, struct Payload request){
     while(1){
         //送るサイズの計算
         if(size > DGRAM_SIZE){
-            sendsize = DGRAM_SIZE;
+            readsize = DGRAM_SIZE;
         }else if(size > 0){
-            sendsize = size;
+            readsize = size;
             flag = -1;
         }else{
             //送るサイズが０
@@ -207,7 +207,7 @@ int responseRead(int fd, struct Payload request){
         }
 
         bzero(buf, DGRAM_SIZE);
-        if((rc = read(request.header.slot1, buf, sendsize)) < 0){
+        if((rc = read(request.header.slot1, buf, readsize)) < 0){
             response.header.type = NO;
             if(sendPayload(fd, response) < 0){
                 return -1;
@@ -218,7 +218,7 @@ int responseRead(int fd, struct Payload request){
         //payloadの作成
         response.data = buf;
         response.header.type = YES;
-        response.header.size = sendsize;
+        response.header.size = rc;
         response.header.slot1 = flag;
 
         //payloadの送信

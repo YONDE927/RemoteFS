@@ -430,7 +430,7 @@ Connector* getConnector(char* configpath)
         }
         pthread_mutex_unlock(&(connector->mutex));
     }
-    if(resquestHealth(connector->sockfd))
+    if(resquestHealth(connector->sockfd) == 0)
     {
         return connector;
     }

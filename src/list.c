@@ -85,6 +85,10 @@ void freeList(List* list, void (*fptr)(void *))
 
 void printList(List* list, void (*fptr)(void *))
 {
+    if(list == NULL){
+        return;
+    }
+
     Node* pNode = list->head;
     if(pNode == NULL){
         printf("empty\n");

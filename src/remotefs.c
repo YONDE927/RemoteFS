@@ -307,7 +307,7 @@ int fuseRead(const char *path, char *buffer, size_t size, off_t offset, struct f
     fh->offset += rc;
 
     //レコード
-    recordOperation(fs->record, path, READ);
+    recordOperation(fs->record, path, oREAD);
 
     return rc;
 }
@@ -425,7 +425,7 @@ int fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         attr = node->data;
         filler(buf, attr->path, &(attr->st), 0, FUSE_FILL_DIR_PLUS);
     }
-    freeList(attrs, freeAttr);
+    freeList(attrs, NULL);
 
     //レコード
     //recordOperation(fs->record, path, OPEN);

@@ -12,54 +12,51 @@ void serverwork(int client){
     int rc;
     struct Payload* payload;
 
+    puts("accpet client");
     while(1){
-        //コネクションの受付
-        puts("accpet client");
-        while(1){
-            //リクエスト
-            payload = recvPayload(client);
-            if(payload == NULL){
-                break;
-            }
-
-            puts("recv request");
-
-            //リクエスト処理
-            switch(payload->header.type){
-                case OPEN:
-                    rc = responseOpen(client, *payload);
-                    break;
-                case CLOSE:
-                    rc = responseClose(client, *payload);
-                    break;
-                case READ:
-                    rc = responseRead(client, *payload);
-                    break;
-                case WRITE:
-                    rc = responseWrite(client, *payload);
-                    break;
-                case STAT:
-                    rc = responseStat(client, *payload);
-                    break;
-                case READDIR:
-                    rc = responseReaddir(client, *payload);
-                    break;
-                case HEALTH:
-                    rc = responseHealth(client, *payload);
-                    break;
-                default:
-                    rc = -1;
-                    break;
-            }
-
-            if(rc < 0){
-                break;
-            }
-
-            freePayload(payload);
+        //リクエスト
+        payload = recvPayload(client);
+        if(payload == NULL){
+            break;
         }
-        close(client);
+
+        puts("recv request");
+
+        //リクエスト処理
+        switch(payload->header.type){
+            case OPEN:
+                rc = responseOpen(client, *payload);
+                break;
+            case CLOSE:
+                rc = responseClose(client, *payload);
+                break;
+            case READ:
+                rc = responseRead(client, *payload);
+                break;
+            case WRITE:
+                rc = responseWrite(client, *payload);
+                break;
+            case STAT:
+                rc = responseStat(client, *payload);
+                break;
+            case READDIR:
+                rc = responseReaddir(client, *payload);
+                break;
+            case HEALTH:
+            rc = responseHealth(client, *payload);
+            break;
+            default:
+                rc = -1;
+                break;
+        }
+
+        if(rc < 0){
+            break;
+        }
+
+        freePayload(payload);
     }
+    close(client);
 }
 
 void startServer(){ 
@@ -73,6 +70,7 @@ void startServer(){
         if((rc =fork()) == 0){
             close(server);
             serverwork(client);
+            break;
         }else{
             close(client);
         }
