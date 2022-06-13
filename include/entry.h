@@ -9,8 +9,5 @@ typedef struct Attribute
     struct stat st;
 } Attribute;
 
-Attribute* newAttr(int pathlen);
-void freeAttr(void* attr);
-
 void printdirstat(void* _dstat);
 

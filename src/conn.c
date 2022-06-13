@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "entry.h"
 #include "rawtp/connection.h"
 #include "rawtp/fileoperation.h"
 #include "conn.h"
@@ -479,73 +480,61 @@ List* connReaddir(const char* path)
     pthread_mutex_lock(&(connector->mutex));
     stats = requestReaddir(connector->sockfd, path); 
     pthread_mutex_unlock(&(connector->mutex));
-    return list;
+    return stats;
 }
 
 /* connStatはAttributeのポインタを受け取りその領域を予約して取得した属性をコピーする。 */
 Attribute* connStat(const char* path)
 {
+    int rc;
     //printf("connStat %s\n",path);
     Attribute* attr = NULL;
-    sftp_attributes sfstat;
+    struct stat stbuf;
     Connector* connector = getConnector(NULL);
     if(connector == NULL)
     {
         return NULL;
     }
     pthread_mutex_lock(&(connector->mutex));
-    sfstat = sftp_stat(connector->m_sftp, path);
+    rc = requestStat(connector->sockfd, path, &stbuf);
     pthread_mutex_unlock(&(connector->mutex));
-    if(sfstat != NULL)
-    {
-        attr = newAttr(strlen(path) + 1);
-        strncpy(attr->path, path, strlen(path) + 1);
-        attr->st.st_size  = sfstat->size;
-        attr->st.st_atime = sfstat->atime;
-        attr->st.st_mtime = sfstat->mtime;
-        attr->st.st_ctime = sfstat->createtime;
-        if(sfstat->type==1){
-            attr->st.st_mode = S_IFREG | 0755;
-            attr->st.st_nlink = 1;
-        }else if(sfstat->type==2){
-            attr->st.st_mode = S_IFDIR | 0755;
-        attr->st.st_nlink = 2;
-        }
-    }
+    if(rc < 0){ return NULL;}
+    attr = malloc(sizeof(Attribute));
+    strncpy(attr->path, path, strlen(path) + 1);
+    attr->st = stbuf;
+
     return attr;
 }
 
 FileSession* connOpen(const char* path,int flag)
 {
-    FileSession* rf;
-    sftp_file file;
-    int path_size;
+    FileSession* file;
+    int path_size, fd;
     Connector* connector = getConnector(NULL);
 
     pthread_mutex_lock(&(connector->mutex));
-    file = sftp_open(connector->m_sftp, path, O_RDWR, 0);
+    fd = requestOpen(connector->sockfd, path, flag);
     pthread_mutex_unlock(&(connector->mutex));
-    if(file == NULL)
-    {
-        printf("error %d\n",sftp_get_error(connector->m_sftp));
+    if(fd < 0){
         return NULL;
     }
 
-    path_size = strlen(path);
-    rf = malloc(sizeof(FileSession));
-    rf->path = malloc(sizeof(char)*(path_size + 1));
-    strncpy(rf->path, path, path_size);
-    rf->path[path_size] = '\0';
-    rf->fh = file;
-    return rf;
+    file = malloc(sizeof(FileSession));
+    bzero(file, sizeof(FileSession));
+
+    strcpy(file->path, path);
+    file->fh = fd;
+
+    return file;
 }
 
-int connRead(FileSession* file,off_t offset, void* buffer, int size)
+int connRead(FileSession* file, off_t offset, void* buffer, int size)
 {
     /* charを予約して、sftp_readしてコピーする。 */
     int read_sum = 0;
     int read_size = 0;
     int nbytes = 1;
+    int rc;
     Connector* connector = getConnector(NULL);
 
     if(file == NULL){
@@ -554,13 +543,6 @@ int connRead(FileSession* file,off_t offset, void* buffer, int size)
     }
 
     //読み込み
-    pthread_mutex_lock(&(connector->mutex));
-    if(sftp_seek(file->fh, offset) < 0){
-        pthread_mutex_unlock(&(connector->mutex));
-        return -1;
-    }
-    pthread_mutex_unlock(&(connector->mutex));
-
     for(; (nbytes != 0) & (size > 0) ;){
         if( size > CHUNK_SIZE ){
             read_size = CHUNK_SIZE;
@@ -570,7 +552,7 @@ int connRead(FileSession* file,off_t offset, void* buffer, int size)
         }
 
         pthread_mutex_lock(&(connector->mutex));
-        nbytes = sftp_read(file->fh, buffer, read_size);
+        nbytes = requestRead(connector->sockfd, file->fh, buffer, offset, read_size);
         pthread_mutex_unlock(&(connector->mutex));
 
         if(nbytes < 0){
@@ -578,6 +560,7 @@ int connRead(FileSession* file,off_t offset, void* buffer, int size)
         }
         //次のreadのためにbufferのオフセットを更新して読み込み分サイズを減らす。
         buffer += nbytes;
+        offset += nbytes;
         size -= nbytes;
         //総読み込みサイズの計算
         read_sum += nbytes;
@@ -585,7 +568,7 @@ int connRead(FileSession* file,off_t offset, void* buffer, int size)
     return read_sum;
 }
 
-int connWrite(FileSession* file,off_t offset, void* buffer, int size)
+int connWrite(FileSession* file, off_t offset, void* buffer, int size)
 {
     /* charを予約して、sftp_writeしてコピーする。 */
     int write_sum = 0;
@@ -600,14 +583,6 @@ int connWrite(FileSession* file,off_t offset, void* buffer, int size)
     }
 
     //書き込み
-    pthread_mutex_lock(&(connector->mutex));
-    if(sftp_seek(file->fh, offset) < 0)
-    {
-        pthread_mutex_unlock(&(connector->mutex));
-        return -1;
-    }
-    pthread_mutex_unlock(&(connector->mutex));
-
     for(; (nbytes != 0) & (size > 0) ;)
     {
         if( size > CHUNK_SIZE )
@@ -620,7 +595,7 @@ int connWrite(FileSession* file,off_t offset, void* buffer, int size)
         }
 
         pthread_mutex_lock(&(connector->mutex));
-        nbytes = sftp_write(file->fh, buffer, write_size);
+        nbytes = requestWrite(connector->sockfd, file->fh, buffer, offset, write_size);
         pthread_mutex_unlock(&(connector->mutex));
 
         if(nbytes < 0)
@@ -629,6 +604,7 @@ int connWrite(FileSession* file,off_t offset, void* buffer, int size)
         }
         //次のreadのためにbufferのオフセットを更新して読み込み分サイズを減らす。
         buffer += nbytes;
+        offset += nbytes;
         size -= nbytes;
         //総読み込みサイズの計算
         write_sum += nbytes;
@@ -639,6 +615,8 @@ int connWrite(FileSession* file,off_t offset, void* buffer, int size)
 int connClose(FileSession* file)
 {
     Connector* connector = getConnector(NULL);
+    int rc;
+
     if(file == NULL)
     {
         printf("Remotefile* file not exist\n");
@@ -646,17 +624,11 @@ int connClose(FileSession* file)
     }
 
     pthread_mutex_lock(&(connector->mutex));
-    if(sftp_close(file->fh) == SSH_ERROR)
-    {
-        printf("sftp_close error\n");
-        pthread_mutex_unlock(&(connector->mutex));
-        return -1;
-    }
+    rc = requestClose(connector->sockfd, file->fh); 
     pthread_mutex_unlock(&(connector->mutex));
 
-    free(file->path);
+    if(rc < 0){ return -1; }
     free(file);
-    file = NULL;
     return 0;
 }
 

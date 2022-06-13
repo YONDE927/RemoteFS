@@ -29,7 +29,7 @@ typedef struct Authinfo
 
 typedef struct FileSession
 {
-    char* path;
+    char path[256];
     sftp_file fh;
 } FileSession;
 

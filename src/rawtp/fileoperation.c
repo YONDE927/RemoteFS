@@ -17,12 +17,15 @@ int requestOpen(int fd, const char* path, int mode){
     payload.header.type = OPEN;
     payload.header.size = strlen(path) + 1;
     payload.header.slot1 = mode;
-    payload.data = path;
+    payload.data = strdup(path);
   
     //リクエストを送信
     if((rc = sendPayload(fd, payload)) < 0){
+        free(payload.data);
         return -2;
     }
+    free(payload.data);
+
     //レスポンスの受信
     if((ppayload = recvPayload(fd)) == NULL){
         return -2;
@@ -367,12 +370,15 @@ int requestStat(int sockfd, const char* path, struct stat* stbuf){
 
     payload.header.type = STAT;
     payload.header.size = strlen(path) + 1;
-    payload.data = path;
+    payload.data = strdup(path);
   
     //リクエストを送信
     if(sendPayload(sockfd, payload) < 0){
+        free(payload.data);
         return -2;
     }
+    free(payload.data);
+
     //レスポンスの受信
     if((ppayload = recvPayload(sockfd)) == NULL){
         return -2;
@@ -436,12 +442,15 @@ List* requestReaddir(int sockfd, const char* path){
 
     payload.header.type = READDIR;
     payload.header.size = strlen(path) + 1;
-    payload.data = path;
+    payload.data = strdup(path);
   
     //リクエストを送信
     if(sendPayload(sockfd, payload) < 0){
+        free(payload.data);
         return NULL;
     }
+
+    free(payload.data);
 
     stats = newList();
 
