@@ -58,7 +58,7 @@ int main(int argc, char**argv)
         printf("connOpen error\n");
         exit(EXIT_FAILURE);
     }
-    rf2 = connOpen("/tmp/connWrite.txt", O_RDONLY);
+    rf2 = connOpen("/tmp/connWrite.txt", O_RDWR);
     if(rf2 < 0)
     {
         printf("connOpen error\n");
@@ -84,10 +84,12 @@ int main(int argc, char**argv)
     nbytes = connWrite(rf2, 0, write_buf, write_size);
     if(nbytes > 0)
     {
-    file = fopen(path, "r");
-    nbytes = fread(buf, sizeof(char), write_size, file);
-    buf[write_size] = '\0';
-    printf("%s\n", buf);
+        file = fopen(path, "r");
+        nbytes = fread(buf, sizeof(char), write_size, file);
+        buf[write_size] = '\0';
+        printf("%s\n", buf);
+    }else{
+        printf("connwrite fail\n");
     }
 
     return 0;

@@ -6,7 +6,7 @@ RAWFLAG =
 TESTD = ../test/
 
 #remotefs
-all: conn utils test mirror record rawtp
+all: conn utils test mirror record oarfts
 	${CC} ${CFLAG} ${INC} ${RAWFLAG} -o RemoteFS ${SRCD}remotefs.c obj/entry.o obj/conn.o obj/list.o obj/map.o obj/mirror.o obj/record.o obj/fileoperation.o obj/transfer.o obj/byteorder.o obj/connection.o -lssh -lfuse3 -lpthread -lsqlite3
 
 #entry
@@ -16,14 +16,14 @@ entry-clean:
 	rm -f obj/entry.o
 
 #conn
-conn: list entry rawtp
+conn: list entry 
 	${CC} ${CFLAG} ${INC} -o obj/conn.o -c ${SRCD}conn.c 
 conn-clean:
 	rm -f obj/conn.o
 
-#rawtp
-rawtp: 
-	make -C ../src/rawtp all
+#Oarfts
+oarfts: 
+	make -C ../src/Oarfts ob OBJD=../../build/obj/ INC=-I../../include/
 
 #cache
 cache: utils
@@ -60,8 +60,8 @@ prepare:
 test: test-conn test-utils test-clean test-mirror
 	echo "Hello connRead test." > /tmp/connRead.txt
 	touch /tmp/connWrite.txt
-test-conn: conn utils rawtp
-	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}test-conn.c obj/list.o obj/conn.o obj/entry.o obj/fileoperation.o obj/transfer.o obj/connection.o obj/byteorder.o  -lssh -lpthread
+test-conn: conn utils oarfts
+	${CC} ${CFLAG} ${INC} -o test/test-conn ${TESTD}test-conn.c obj/list.o obj/conn.o obj/entry.o obj/fileoperation.o obj/transfer.o obj/byteorder.o obj/connection.o -lssh -lpthread
 #test-utils: utils
 #	${CC} ${CFLAG} ${INC} -o test/test-utils ${TESTD}test-utils.c obj/list.o obj/map.o
 #test-mirror: mirror

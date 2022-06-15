@@ -9,7 +9,10 @@ List* newList()
 }
 
 void push_front(List* list, void* Data, int SizeofData)
-{   
+{  
+    if(Data == NULL){
+        return;
+    }
     //新しいNodeを予約
     Node* newNode = (Node*)malloc(sizeof(Node));
     newNode->data = Data; 
@@ -21,10 +24,13 @@ void push_front(List* list, void* Data, int SizeofData)
 
 void push_back(List* list, void* Data, int SizeofData)
 {
+    if(Data == NULL){
+        return;
+    }
     //新しいNodeを予約
     Node* newNode = (Node*)malloc(sizeof(Node));
-    newNode->data = Data; 
     newNode->next = NULL;
+    newNode->data = Data;
     //リストが空の場合は先頭に新ノードを登録する。空でなければ最後のノードまで移動する。
     if(list->head == NULL)
     {
@@ -85,10 +91,6 @@ void freeList(List* list, void (*fptr)(void *))
 
 void printList(List* list, void (*fptr)(void *))
 {
-    if(list == NULL){
-        return;
-    }
-
     Node* pNode = list->head;
     if(pNode == NULL){
         printf("empty\n");
@@ -116,8 +118,8 @@ int length(List* list)
     Node* pNode = list->head;
     while(pNode != NULL)
     {
-    cnt++;
-    pNode = pNode->next;
+        cnt++;
+        pNode = pNode->next;
     }
     return cnt;
 }

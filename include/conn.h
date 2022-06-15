@@ -7,8 +7,8 @@
 #include <pthread.h>
 #include "entry.h"
 #include "list.h"
-#include "rawtp/connection.h"
-#include "rawtp/fileoperation.h"
+#include "connection.h"
+#include "fileoperation.h"
 
 #define RAW
 

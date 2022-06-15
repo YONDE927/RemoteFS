@@ -7,8 +7,8 @@
 #include <fcntl.h>
 
 #include "entry.h"
-#include "rawtp/connection.h"
-#include "rawtp/fileoperation.h"
+#include "connection.h"
+#include "fileoperation.h"
 #include "conn.h"
 
 #define CHUNK_SIZE 16384
@@ -421,11 +421,9 @@ Connector* getConnector(char* configpath)
         if(connInit(connector, authinfo) < 0)
         {
             printf("connection cannot be established\n");
+            pthread_mutex_unlock(&(connector->mutex));
             free(connector);
             free(authinfo);
-            connector = NULL;
-            authinfo = NULL;
-            pthread_mutex_unlock(&(connector->mutex));
             return NULL;
         }
         pthread_mutex_unlock(&(connector->mutex));
@@ -595,7 +593,9 @@ int connWrite(FileSession* file, off_t offset, void* buffer, int size)
         }
 
         pthread_mutex_lock(&(connector->mutex));
+        puts("writing");
         nbytes = requestWrite(connector->sockfd, file->fh, buffer, offset, write_size);
+        printf("%d\n", nbytes);
         pthread_mutex_unlock(&(connector->mutex));
 
         if(nbytes < 0)

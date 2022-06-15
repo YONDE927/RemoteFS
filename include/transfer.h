@@ -12,6 +12,8 @@ void* recvData(int fd);
 
 struct PayloadHeader {
     int type;
+    int req;
+    int res;
     int size;
     int slot1;
     int slot2;
@@ -25,6 +27,8 @@ struct Payload {
 };
 
 struct PayloadHeader alignPayloadHeader(struct PayloadHeader header);
+
+void printPayloadHeader(struct PayloadHeader* header);
 
 void freePayload(struct Payload* payload);
 
